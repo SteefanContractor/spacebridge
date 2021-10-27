@@ -1,0 +1,32 @@
+name: spacebridge
+
+channels:
+  - conda-forge
+
+dependencies:
+  - pip=21.3.1
+  - ploomber=0.13.3
+  - pygraphviz
+  - numpy=1.19.5
+  - matplotlib=3.4.3
+  - scipy=1.7.1
+  - xarray=0.19.0
+  - tensorflow=2.6.0
+  - tensorboard=2.6.0
+  - cudatoolkit=11.2
+  - cudnn=8.1.0
+  - opencv=4.5.3
+  - imageio=2.9.0
+  - scikit-image=0.18.3
+  - scikit-learn=1.0.1
+  - pathlib=1.0.1
+  - jupyter
+  - jupyterlab=3.2.1
+  - jupyterlab-git=0.33.0
+  - jupyterlab-variableinspector=3.0.9
+  - mamba_gator=5.1.2
+  - nodejs=16.11.1
+  - pip:
+    - pytest
+    - tensorflow-gpu==2.6.0
+    - opencv-python==4.5.4.58
