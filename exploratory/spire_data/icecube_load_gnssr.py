@@ -102,7 +102,9 @@ class LoadGNSSR:
         self.override_flags = False
         self.grzice_band = band
 
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO,
+                            format='[ %(asctime)s.%(msecs)03d ] %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
         self.logger = logging.getLogger("Load_GNSSR")
         self.l1b_files = []
         self.data = {'files_read': []}
