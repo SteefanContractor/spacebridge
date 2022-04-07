@@ -112,8 +112,8 @@ class LoadGNSSR:
 
         self.vars = [
             'time',
-            'spec_lon',
-            'spec_lat',
+            'longitude',
+            'latitude',
             'reflectivity',
             'excess_phase_noise',
             'sea_ice_presence',
@@ -178,9 +178,9 @@ class LoadGNSSR:
                          'rx_pos',
                          'tx_pos',
                          'spec_pos',
-                         'spec_elevation',
-                         'spec_lon',
-                         'spec_lat',
+                         'angle_of_elevation',
+                         'longitude',
+                         'latitude',
                          'flag_land',
                          'flag_high_elevation',
                          'flag_low_elevation',
@@ -188,8 +188,8 @@ class LoadGNSSR:
                          'flag_climatology',
                          'flag_master'
                          ]
-        self.lat_str = 'spec_lat'
-        self.lon_str = 'spec_lon'
+        self.lat_str = 'latitude'
+        self.lon_str = 'longitude'
         self.time_str = 'time'
         self.error_code = 0
         self._fillValue = BAD_VALUE
