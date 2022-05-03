@@ -201,8 +201,8 @@ class LoadGNSSR:
         self.points_added = 0
 
         # grid corners for gridgrid
-        self.map_reduce_grid_x = {'north': [-3850, 3750], 'south': [-3950, 3950]}
-        self.map_reduce_grid_y = {'north': [-5350, 5850], 'south': [-3950, 4350]}  # km
+        self.map_reduce_x = {'north': [-3850, 3750], 'south': [-3950, 3950]}
+        self.map_reduce_y = {'north': [-5350, 5850], 'south': [-3950, 4350]}  # km
 
     def add_all_vars(self):
         self.vars = self.all_vars
@@ -462,53 +462,55 @@ class LoadGNSSR:
         x = x / 1000
         y = y / 1000
 
-        res = grid
-
-        if grid_type is 'NSIDC':
+        if grid_type == 'NSIDC':
             x_poss, y_poss = self.make_NSIDC_grids(hemisphere=hemisphere, grid=grid, out='x')
+            x_temp = x_poss[0, :]
+            y_temp = y_poss[:, 0]
+            x_min = np.nanmin(x_temp)
+            x_max = np.nanmax(x_temp) + grid
+            y_min = np.nanmin(y_temp)
+            y_max = np.nanmax(y_temp) + grid
         else:
             x_min = np.nanmin(x)
             x_max = np.nanmax(x)
             y_min = np.nanmin(y)
             y_max = np.nanmax(y)
 
-            x_temp = np.arange(x_min, x_max - res, res)
-            y_temp = np.arange(y_min, y_max - res, res)
+            x_temp = np.arange(x_min, x_max - grid, grid)
+            y_temp = np.arange(y_min, y_max - grid, grid)
 
             y_poss = np.transpose(np.tile(y_temp, (len(x_temp), 1)))  # km
             x_poss = np.tile(x_temp, (len(y_temp), 1))  # km
 
-        grid_x = x
-        grid_y = y
+        x[(x <= min(x_poss.flatten())) | (x >= max(x_poss.flatten()) + grid)] = np.nan
+        y[(y <= min(y_poss.flatten())) | (y >= max(y_poss.flatten()) + grid)] = np.nan
 
-        grid_x[(grid_x < min(x_temp)) | (grid_x >= x_max)] = np.nan
-        grid_y[(grid_y < min(y_temp)) | (grid_y >= y_max)] = np.nan
+        Px = (np.ones(len(x)) * self._fillValue).astype(int)
+        Py = (np.ones(len(y)) * self._fillValue).astype(int)
+        in_bounds = ((x > min(x_poss.flatten())) & (x < max(x_poss.flatten()))
+                     & (y > min(y_poss.flatten())) & (y < max(y_poss.flatten()))
+                     & (z != self._fillValue))
 
-        p_x = (np.ones(len(grid_x)) * BAD_VALUE).astype(int)
-        p_y = (np.ones(len(grid_y)) * BAD_VALUE).astype(int)
-        in_bounds = (grid_x > x_min) & (grid_x < max(x_temp)) & (grid_y > y_min) & (grid_y < max(y_temp))
+        Px[in_bounds] = (np.floor((x[in_bounds] - min(x_poss.flatten())) / grid)).astype(int)
+        Py[in_bounds] = (np.floor((y[in_bounds] - min(y_poss.flatten())) / grid)).astype(int)
+        in_bounds = in_bounds & (Px < x_poss.shape[1]) & (Py < y_poss.shape[0])
+        if np.count_nonzero(in_bounds) < 1:
+            lat_grid = None
+            lon_grid = None
+            img = None
+            return lat_grid, lon_grid, img
 
-        p_x[in_bounds] = (np.floor((grid_x[in_bounds] - x_min) / res)).astype(int)
-        p_y[in_bounds] = (np.floor((grid_y[in_bounds] - y_min) / res)).astype(int)
-        in_bounds = in_bounds & (p_x < x_poss.shape[1]) & (p_y < y_poss.shape[0])
+        ind = np.ravel_multi_index((Py[in_bounds], Px[in_bounds]), x_poss.shape, order='C')
 
-        ind = np.ravel_multi_index((p_y[in_bounds], p_x[in_bounds]), x_poss.shape, order='C')
-        img = np.ones(len(x_poss.flatten())) * BAD_VALUE
-
+        img = np.ones(len(x_poss.flatten())) * self._fillValue
         for index in np.unique(ind):
             img[index] = method(z[in_bounds][ind == index])
 
         img = np.reshape(img, x_poss.shape)
         img[img == BAD_VALUE] = np.nan
-
         lon_grid, lat_grid = projection(x_poss.flatten() * 1000, y_poss.flatten() * 1000, inverse=True)
         lon_grid = np.reshape(lon_grid, x_poss.shape)
         lat_grid = np.reshape(lat_grid, y_poss.shape)
-
-        if cmin is None:
-            cmin = np.nanpercentile(img.flatten(), 5)
-        if cmax is None:
-            cmax = np.nanpercentile(img.flatten(), 95)
 
         if make_fig:
             m = self.pcolorstereo(lat_grid, lon_grid, img, hemisphere=hemisphere, cmin=cmin, cmax=cmax, cmap=cmap)
@@ -554,7 +556,7 @@ class LoadGNSSR:
             hemi_mult = 1
         else:
             if proj is None:
-                proj = ccrs.SouthPolarStereo(central_latitude=[-70])
+                proj = ccrs.SouthPolarStereo()
             hemi_mult = -1
         fig = plt.figure(figsize=(10, 10))
         m = plt.axes(projection=proj)
@@ -573,7 +575,7 @@ class LoadGNSSR:
         gl.ylabel_style = {'size': 15, 'color': 'gray'}
         plot_data = np.array(data).astype(float)
         plot_data[plot_data == BAD_VALUE] = np.nan
-        pl = m.pcolormesh(lons, lats, plot_data, transform=ccrs.PlateCarree(), vmin=cmin, vmax=cmax, shading='flat',
+        pl = m.pcolormesh(lons, lats, plot_data[0:-1, 0:-1], transform=ccrs.PlateCarree(), vmin=cmin, vmax=cmax, shading='flat',
                           cmap=cmap)
 
         if sum(data.flatten() == BAD_VALUE) > 0:
@@ -592,10 +594,10 @@ class LoadGNSSR:
         :param out: 'x' if grid desired in x and y co-ordinates, 'lat_lon' if in latitude and longitude
         :return: 2D array - (x_poss, y_poss (km)) or (lat_grid, lon_grid)
         """
-        x_min = self.map_reduce_grid_x[hemisphere][0]
-        x_max = self.map_reduce_grid_x[hemisphere][1]
-        y_min = self.map_reduce_grid_y[hemisphere][0]
-        y_max = self.map_reduce_grid_y[hemisphere][1]
+        x_min = self.map_reduce_x[hemisphere][0]
+        x_max = self.map_reduce_x[hemisphere][1]
+        y_min = self.map_reduce_y[hemisphere][0]
+        y_max = self.map_reduce_y[hemisphere][1]
         x_temp = np.arange(x_min, x_max - grid, grid)
         y_temp = np.arange(y_min, y_max - grid, grid)
 
@@ -612,4 +614,4 @@ class LoadGNSSR:
             lon_grid = np.reshape(lon_grid, x_poss.shape)
             lat_grid = np.reshape(lat_grid, x_poss.shape)
 
-            return lat_grid, lon_grid
+            return lat_grid, lon_grid, projection
