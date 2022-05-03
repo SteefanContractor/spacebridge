@@ -5,6 +5,11 @@ import glob
 import multiprocessing as mp
 import os.path
 from datetime import datetime, timedelta
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
+import matplotlib.path as mpath
+import matplotlib.ticker as mticker
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 """
 eg
@@ -195,6 +200,10 @@ class LoadGNSSR:
         self._fillValue = BAD_VALUE
         self.points_added = 0
 
+        # grid corners for gridgrid
+        self.map_reduce_grid_x = {'north': [-3850, 3750], 'south': [-3950, 3950]}
+        self.map_reduce_grid_y = {'north': [-5350, 5850], 'south': [-3950, 4350]}  # km
+
     def add_all_vars(self):
         self.vars = self.all_vars
 
@@ -378,7 +387,7 @@ class LoadGNSSR:
         return good
 
     def gridstereo(self, z, lats=None, lons=None, inds=None, grid=25, hemisphere='south',
-                   cmin=None, cmax=None, cmap='RdYlBu', method=np.nanmean,
+                   cmin=None, cmax=None, cmap='RdYlBu', grid_type='NSIDC', method=np.nanmean,
                    make_fig=True):
         """
         This function grids the data to passed in and returns the data grid and lons and lats.
@@ -395,6 +404,7 @@ class LoadGNSSR:
         :param cmin: minimum for colourmap
         :param cmax: maximum for colourmap
         :param cmap: colourmap, defaults to
+        :param grid: 'auto' for gridding using the extent of the points or 'NSIDC' to use the NSIDC grid sextents
         :param method: function to use for averaging over grid cell, defaults to numpy.nanmean
         :param make_fig: bool, whether to make the figure or just return the grids.
         :return: lat_grid, lon_grid, img, m
@@ -453,16 +463,20 @@ class LoadGNSSR:
         y = y / 1000
 
         res = grid
-        x_min = np.nanmin(x)
-        x_max = np.nanmax(x)
-        y_min = np.nanmin(y)
-        y_max = np.nanmax(y)
 
-        x_temp = np.arange(x_min, x_max - res, res)
-        y_temp = np.arange(y_min, y_max - res, res)
+        if grid_type is 'NSIDC':
+            x_poss, y_poss = self.make_NSIDC_grids(hemisphere=hemisphere, grid=grid, out='x')
+        else:
+            x_min = np.nanmin(x)
+            x_max = np.nanmax(x)
+            y_min = np.nanmin(y)
+            y_max = np.nanmax(y)
 
-        y_poss = np.transpose(np.tile(y_temp, (len(x_temp), 1)))
-        x_poss = np.tile(x_temp, (len(y_temp), 1))
+            x_temp = np.arange(x_min, x_max - res, res)
+            y_temp = np.arange(y_min, y_max - res, res)
+
+            y_poss = np.transpose(np.tile(y_temp, (len(x_temp), 1)))  # km
+            x_poss = np.tile(x_temp, (len(y_temp), 1))  # km
 
         grid_x = x
         grid_y = y
@@ -516,12 +530,6 @@ class LoadGNSSR:
         :param proj: Projection to be used in the map
         :return: handle to plotted object and handle to map object.
         """
-        import cartopy.crs as ccrs
-        import matplotlib.pyplot as plt
-        import matplotlib.path as mpath
-        import matplotlib.ticker as mticker
-        from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-
         hemisphere = hemisphere.lower()
         if hemisphere == 'antarctic':
             hemisphere = 'south'
@@ -546,7 +554,7 @@ class LoadGNSSR:
             hemi_mult = 1
         else:
             if proj is None:
-                proj = ccrs.SouthPolarStereo()
+                proj = ccrs.SouthPolarStereo(central_latitude=[-70])
             hemi_mult = -1
         fig = plt.figure(figsize=(10, 10))
         m = plt.axes(projection=proj)
@@ -574,3 +582,34 @@ class LoadGNSSR:
         plt.colorbar(pl)
 
         return pl, m
+
+
+    def make_NSIDC_grids(self, hemisphere='south', grid=25, out='lat_lon'):
+        """
+        Makes the NSIDC grid
+        :param hemisphere: 'north' or 'south'
+        :param grid: resolution of grid, km
+        :param out: 'x' if grid desired in x and y co-ordinates, 'lat_lon' if in latitude and longitude
+        :return: 2D array - (x_poss, y_poss (km)) or (lat_grid, lon_grid)
+        """
+        x_min = self.map_reduce_grid_x[hemisphere][0]
+        x_max = self.map_reduce_grid_x[hemisphere][1]
+        y_min = self.map_reduce_grid_y[hemisphere][0]
+        y_max = self.map_reduce_grid_y[hemisphere][1]
+        x_temp = np.arange(x_min, x_max - grid, grid)
+        y_temp = np.arange(y_min, y_max - grid, grid)
+
+        y_poss = np.transpose(np.tile(y_temp, (len(x_temp), 1)))
+        x_poss = np.tile(x_temp, (len(y_temp), 1))
+        if out == 'x':
+            return x_poss, y_poss   # km
+        else:
+            if hemisphere == 'north':
+                projection = Proj('epsg:3411')  # NSIDC Polar Stereographic, Arctic
+            else:
+                projection = Proj('epsg:3412')  # NSIDC Polar Stereographic, Antarctic
+            lon_grid, lat_grid = projection(x_poss.flatten() * 1000, y_poss.flatten() * 1000, inverse=True)
+            lon_grid = np.reshape(lon_grid, x_poss.shape)
+            lat_grid = np.reshape(lat_grid, x_poss.shape)
+
+            return lat_grid, lon_grid
