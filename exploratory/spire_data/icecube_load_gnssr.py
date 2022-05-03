@@ -598,8 +598,8 @@ class LoadGNSSR:
         x_max = self.map_reduce_x[hemisphere][1]
         y_min = self.map_reduce_y[hemisphere][0]
         y_max = self.map_reduce_y[hemisphere][1]
-        x_temp = np.arange(x_min, x_max - grid, grid)
-        y_temp = np.arange(y_min, y_max - grid, grid)
+        x_temp = np.arange(x_min, x_max, grid)
+        y_temp = np.arange(y_min, y_max, grid)
 
         y_poss = np.transpose(np.tile(y_temp, (len(x_temp), 1)))
         x_poss = np.tile(x_temp, (len(y_temp), 1))
