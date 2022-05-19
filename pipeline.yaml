@@ -1,6 +1,15 @@
 tasks:
   # Add tasks here...
-
+  - source: scripts/preprocess_gnssr.py
+    product:
+      nb: products/preprocess_gnssr.ipynb
+      data: /volstore/spacebridge/gnssr_grzice/preprocessed_gnssr.csv
+  - source: scripts/train_tabnet.py
+    product:
+      nb: products/train_tabnet.ipynb
+  - source: scripts/train_xgboost.py
+    product:
+      nb: products/train_xgboost.ipynb
   # Example
   # - source: path/to/script.py
   #   product: products/report.ipynb
