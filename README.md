@@ -3,24 +3,30 @@ Requires [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Mambafo
 
 ## Setup development environment
 
+For all scripts except for train_pytorch_tabnet.py setup the conda/mamba environment with environment.pycaret.yml otherwise use environment.pytorch.yml. This is because of dependency conflicts between pycaret and pytorch.
+
 ```sh
-# configure dev environment
-ploomber install
-
-
-# ...or use conda directly
-conda env create --file environment.yml # replace conda with mamba to use mamba
+# use conda directly
+conda env create --file environment.pycaret.yml # replace pycaret with pytorch to setup pytorch environment
+# use the conda -p/--prefix flag to specify install location e.g.
+conda env create -f environment.pycaret.yml -p /path/to/envs/pycaret
 
 # activate conda environment
-conda activate spacebridge
+conda activate pycaret
 ```
 
 
 
 ## Running the pipeline
 
+See [ploomber documentation](https://docs.ploomber.io/en/stable/index.html) to build using ploomber or right-click the .py files and select "open as notebook" to run the py files as a notebook.
+
 ```sh
 ploomber build
+
+# for building partial pipelines
+ploomber build --partial [task_name]
+# note this would also build all upstream tasks so set upstream to None in the script if you don't want that
 
 # start an interactive session
 ploomber interact

@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.13.8
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -13,7 +13,8 @@
 # ---
 
 # %%
-# Add description here
+# This script creates a dataframe with raw gnssr data as feature columns and matched ice concentration from iceage_Melsheimer dataset as label columns
+# This is the origin of the preprocess_gnssr.csv file
 #
 # *Note:* You can open this file as a notebook (JupyterLab: right-click on it in the side bar -> Open With -> Notebook)
 
@@ -69,7 +70,7 @@ for date in dates:
                 icetypefile = icetypefileprefix + dfnew.date[0] + '.nc'
                 print(f'Opening ice type file {icetypefile}')
                 icetypeds = xr.open_dataset(icetypefile)
-            dfnew = create_label_columns(dfnew, icetypeds)
+            dfnew, ij = create_iam_label_columns(dfnew, icetypeds)
             df = pd.concat([df,dfnew])
     [print(f'processed {i} files with date {date}') if len(files) > 0 else None]
 

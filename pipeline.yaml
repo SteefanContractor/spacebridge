@@ -1,15 +1,66 @@
+executor: serial
+
 tasks:
   # Add tasks here...
   - source: scripts/preprocess_gnssr.py
     product:
       nb: products/preprocess_gnssr.ipynb
       data: /volstore/spacebridge/gnssr_grzice/preprocessed_gnssr.csv
-  - source: scripts/train_tabnet.py
+  - source: scripts/add_oiconc_nasabyu_cols.py
+    product: 
+      nb: products/add_oiconc_nasabyu_cols.ipynb
+      data: /volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202329.csv
+    papermill_params:
+      log_output: True
+  - source: scripts/data_exploration.py
+    product: 
+      nb: products/data_exploration.ipynb
+    papermill_params:
+      log_output: True
+  - source: scripts/train_pycaret.py
+    name: train_pycaret_[[label]]_[[train_period]]
     product:
-      nb: products/train_tabnet.ipynb
-  - source: scripts/train_xgboost.py
+      nb: 'products/smoketest-{{test}}/train_pycaret_[[label]]_[[train_period]].ipynb'
+    params:
+      test: '{{test}}'
+      test_frac: '{{test_frac}}'
+    grid:
+      label: ['oi', 'yi', 'fyi', 'myi']
+      train_period: ['allyear', 'summer', 'winter']
+  - source: scripts/tune_lightgbm.py
+    name: tune_lightgbm_[[label]]_[[train_period]]
     product:
-      nb: products/train_xgboost.ipynb
+      nb: 'products/smoketest-{{test}}/tune_lightgbm_[[label]]_[[train_period]].ipynb'
+    papermill_params:
+      log_output: True
+    params:
+      test: False
+      test_frac: 1.0
+    grid:
+      label: ['oi', 'yi', 'fyi', 'myi']
+      train_period: ['allyear', 'summer', 'winter']
+  - source: scripts/train_pytorch_tabnet.py
+    name: train_pytorch_tabnet_[[label]]_[[train_period]]
+    product:
+      nb: 'products/smoketest-{{test}}/train_pytorch_tabnet_[[label]]_[[train_period]].ipynb'
+    papermill_params:
+      log_output: True
+    params:
+      test: False
+      test_frac: 1.0
+    grid:
+      label: ['oi', 'yi', 'fyi', 'myi']
+      train_period: ['allyear', 'summer', 'winter']
+  
   # Example
+  
+  # - source: scripts/tabnet_hypersearch.py
+  #   product: 
+  #     nb: products/tabnet_hypersearch.ipynb
+  #     data: products/tabnet_besthyperparameters.txt    
+  # - source: scripts/train_tabnet.py
+  #   product:
+  #     nb: products/train_tabnet.ipynb
+  
   # - source: path/to/script.py
   #   product: products/report.ipynb
