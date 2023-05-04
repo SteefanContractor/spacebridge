@@ -140,3 +140,6 @@ mlruns/
 
 # ignore Petty2020 folder
 petty2020/
+
+# ignore events.out.* files created by pycaret
+events.out*
