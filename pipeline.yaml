@@ -3,16 +3,22 @@ executor: serial
 tasks:
   # Add tasks here...
   - source: scripts/preprocess_gnssr.py
+    params:
+      data_path: '{{data_path}}'
     product:
       nb: products/preprocess_gnssr.ipynb
       data: /volstore/spacebridge/gnssr_grzice/preprocessed_gnssr.csv
   - source: scripts/add_oiconc_nasabyu_cols.py
+    params:
+        data_path: '{{data_path}}'
     product: 
       nb: products/add_oiconc_nasabyu_cols.ipynb
       data: /volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202329.csv
     papermill_params:
       log_output: True
   - source: scripts/data_exploration.py
+    params:
+      data_path: '{{data_path}}'
     product: 
       nb: products/data_exploration.ipynb
     papermill_params:
@@ -24,18 +30,20 @@ tasks:
     params:
       test: '{{test}}'
       test_frac: '{{test_frac}}'
+      data_path: '{{data_path}}'
     grid:
       label: ['oi', 'yi', 'fyi', 'myi']
       train_period: ['allyear', 'summer', 'winter']
   - source: scripts/tune_lightgbm.py
     name: tune_lightgbm_[[label]]_[[train_period]]
     product:
-      nb: 'products/smoketest-{{test}}/tune_lightgbm_[[label]]_[[train_period]].ipynb'
+      nb: 'products/tune_lightgbm_[[label]]_[[train_period]].ipynb'
     papermill_params:
       log_output: True
     params:
       test: False
-      test_frac: 1.0
+      test_frac: 0.1
+      data_path: '{{data_path}}'
     grid:
       label: ['oi', 'yi', 'fyi', 'myi']
       train_period: ['allyear', 'summer', 'winter']
@@ -48,6 +56,7 @@ tasks:
     params:
       test: False
       test_frac: 1.0
+      data_path: '{{data_path}}'
     grid:
       label: ['oi', 'yi', 'fyi', 'myi']
       train_period: ['allyear', 'summer', 'winter']

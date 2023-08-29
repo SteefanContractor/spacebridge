@@ -4,13 +4,18 @@ channels:
   - conda-forge
 
 dependencies:
-  - python=3.8
+  - python=3.9.12=h9a8a25e_1_cpython
+  - ploomber=0.22.2=pyhd8ed1ab_0
+  - pandas=1.4.2=py39h1832856_1
+  - numpy
+  - xarray=2022.3.0=pyhd8ed1ab_0
+  - mlflow=1.25.1=py39ha39b057_0
+  - scipy=1.5.3=py39hee8e79c_0
+  - scikit-learn=0.23.2=py39hf3c863f_3
+  - matplotlib=3.4.3=py39hf3d152e_1
+  - cartopy=0.20.2=py39h0ddd56c_4
+  - pycaret=2.3.10=pyhd8ed1ab_0
+  - lightgbm=3.3.2=py39he80948d_0
+  - catboost=1.0.6=py39hf3d152e_1
+  - xgboost
   - pip
-  - pip:
-    - ploomber
-    - pandas
-    - scikit-learn
-    # if using S3...
-    # - boto3
-    # if using Google Cloud Storage...
-    # - google-cloud-storage
