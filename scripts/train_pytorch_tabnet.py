@@ -1,15 +1,16 @@
+# %% [markdown]
 # ### Note there are environmental clashes between pycaret and pytorch. Use environment.pytorch.yaml to create a separate conda environment and activate it before running this script.
 
-# +
+# %%
 # Script to train tabnet written in pytorch. The pretraining section is work in progress.
 # A separate script will be used for hyperparameter tuning with raytune or optuna
 
-# + tags=["parameters"]
+# %% tags=["parameters"]
 # declare a list tasks whose products you want to use as inputs
 upstream = None
 
 
-# +
+# %%
 import torch
 # from torchmetrics.classification import BinaryMatthewsCorrCoef
 from pytorch_tabnet.tab_model import TabNetClassifier
@@ -26,15 +27,17 @@ from sklearn.metrics import matthews_corrcoef as mcc
 import matplotlib.pyplot as plt
 
 torch.cuda.is_available(), torch.cuda.get_device_name()
-# -
 
+# %%
 import sys
 import logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
+# %%
 logger.info(f'Smoke testing: {test}, smoke_test data fraction: {test_frac}')
 
+# %%
 # load preprocessed data
 data_lab_name = dict(oi='oi_conc', # these are the column names in the saved preprocessed csv
                      yi='YI_conc',
@@ -52,10 +55,13 @@ orig_feats = data.keys()[2:-1] # original features are the features used for tra
 data.reset_index(inplace= True, drop=True)
 data
 
+# %%
 data.dtypes
 
+# %%
 data.memory_usage().sum()/1e6
 
+# %%
 datentime = data[['date','time']]#.drop(data.sample(frac=0.9,random_state=202206).index)
 datentime['date'] = pd.to_datetime(data.date.astype('str'))
 winterdatetime = datentime.query('20200501 <= date <= 20200930')
@@ -70,7 +76,7 @@ AprOcttestdatetime = AprOctdatetime.drop(AprOcttraindatetime.index)
 traindatetime = pd.concat([summertraindatetime, AprOcttraindatetime, wintertraindatetime]).sample(frac=1)
 testdatetime = pd.concat([summertestdatetime, AprOcttestdatetime, wintertestdatetime])
 
-# +
+# %%
 # convert concentrations into presence/absence label 
 palab = [1 if ic>0 else 0 for ic in data[data_lab_name[label]]]
 data.drop(columns=[data_lab_name[label]], inplace=True) # change to the appropriate label column
@@ -85,14 +91,14 @@ summer_test_feat = data.loc[summertestdatetime.index]
 
 del data # memory management
 
-# +
+# %%
 # change the test param in pipeline to subset to 10% of training data for testing
 if test:
   train_feat = train_feat.sample(frac=test_frac, random_state=202304)
 
 train_feat
 
-# +
+# %%
 val_feat = train_feat.sample(frac=0.1, random_state=202206)
 train_feat = train_feat.drop(val_feat.index)
 
@@ -100,11 +106,11 @@ train_lab  = train_feat.iloc[:, -1]
 train_feat = train_feat.iloc[:, :-1]
 val_lab    = val_feat.iloc[:, -1]
 val_feat   = val_feat.iloc[:, :-1]
-# -
 
+# %%
 train_feat.shape, train_lab.shape, val_feat.shape, val_lab.shape
 
-# +
+# %%
 # set up mlflow tracking
 mlflow.set_tracking_uri('/volstore/spacebridge/mlruns_archive/pytorch/mlruns')
 
@@ -117,8 +123,7 @@ except MlflowException:
 print(f'experiment id: {experiment_id}')
 
 
-# -
-
+# %%
 class MCC(Metric):
     def __init__(self):
         self._name = "mcc"
@@ -129,6 +134,7 @@ class MCC(Metric):
         return mcc(y_true, np.argmax(y_pred))
 
 
+# %%
 with mlflow.start_run(experiment_id=experiment_id) as run:
     run_id = run.info.run_id
     print(run_id)
@@ -180,6 +186,7 @@ with mlflow.start_run(experiment_id=experiment_id) as run:
     
     # mlflow.pytorch.log_model(clf, 'model')
 
+# %% [markdown]
 # Time taken:  
 #
 # Batch_size | virtual_batch_size | time for 2 epochs(s)
@@ -193,8 +200,10 @@ with mlflow.start_run(experiment_id=experiment_id) as run:
 # 10240        2048                 (16, 33)
 # 20480        1024                 (18, 37)
 
+# %% [markdown]
 # ## Pretraining
 
+# %%
 with mlflow.start_run(experiment_id=experiment_id) as run:
     run_id = run.info.run_id
     print(run_id)
@@ -280,19 +289,24 @@ with mlflow.start_run(experiment_id=experiment_id) as run:
     
     mlflow.sklearn.log_model(clf, 'classifier')
 
+# %%
 val_feat.iloc[:2,:].values
 
+# %%
 plt.hist(val_feat['nasa_byu'], bins=40)
 
+# %%
 idx = val_feat.nasa_byu[val_feat.nasa_byu == 0.0].index.values
 
+# %%
 sfeats = val_feat.loc[idx,:].values
 sfeats[:,14] = 0
 sfeats
 
+# %%
 preclf.predict(sfeats)
 
-# +
+# %%
 mlflow.pytorch.
 
 clf.fit(
@@ -300,26 +314,31 @@ clf.fit(
   max_epochs=1,
   eval_metric=['accuracy']
 )
-# -
 
+# %%
 masked_val_feat = val_feat.copy()
 masked_val_feat.iloc[:, -2:] = np.nan
 masked_val_feat
 
+# %%
 clf.predict(masked_val_feat.iloc[:10,:].values)
 
+# %%
 mcc(val_lab[:1000].values, clf.predict(val_feat.iloc[:1000,:].values))
 
+# %%
 N = 100000
 sum(clf.predict(train_feat.iloc[:N, :-1].values) == train_feat.iloc[:N, -1].values)/N
 
+# %%
 plt.figure(figsize=(15,8))
 plt.bar(features, clf.feature_importances_)
 plt.xticks(rotation=45)
 
+# %%
 explain_matrix, masks = clf.explain(train_feat.iloc[:1000, :-1].values)
 
-# +
+# %%
 fig, axs = plt.subplots(1, 3, figsize=(20,10))
 
 for i in range(3):

@@ -50,10 +50,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import matthews_corrcoef as mcc
 
 # %%
+import os
 import sys
 import logging
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
+homedir = os.environ['HOME']
 
 # %%
 logger.info(f'Smoke testing: {test}, smoke_test data fraction: {test_frac}')
@@ -65,10 +67,10 @@ data_lab_name = dict(oi='oi_conc', # these are the column names in the saved pre
                      myi='MYI_conc',
                      fyi='FYI_conc')
 # read the header to get the column names
-orig_feats = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
+orig_feats = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
 orig_feats = [orig_feats[i] for i in list(range(16))+[orig_feats.index(data_lab_name[label])]]
 # read values
-data = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv', usecols=orig_feats)
+data = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv', usecols=orig_feats)
 data = data[orig_feats] # reorder columns
 data = data.astype({orig_feats[-1]: 'float32'}) # we do not need greater than float32 precision for the label column
 data.dropna(inplace=True)
@@ -150,7 +152,7 @@ lgbm = create_model('lightgbm', fold=10)
 tuned_lgbm = tune_model(lgbm, optimize='MCC', fold=10)
 
 # %%
-save_model(tuned_lgbm, f'../products/PyCaret_lgbm_{test_frac}SimpData_{train_period}_{label}')
+save_model(tuned_lgbm, f'{homedir}/GIT_REPOS/spacebridge/products/PyCaret_lgbm_{test_frac}SimpData_{train_period}_{label}')
 
 # %%
 evaluate_model(tuned_lgbm)

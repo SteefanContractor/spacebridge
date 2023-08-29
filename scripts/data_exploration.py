@@ -36,9 +36,7 @@ product = None
 
 # %%
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import datetime
 import cartopy.crs as ccrs
 
 # %%
@@ -54,7 +52,7 @@ logger = logging.getLogger(__name__)
 # ## OISSAF ice concentration labels
 
 # %%
-logger.info('Loading OSISAF data.')
+logger.info('Loading OSISAF data: ' + data_path+'preprocessed_gnssr_update202330.csv')
 
 # %%
 # load preprocessed data
@@ -64,11 +62,11 @@ data_lab_name = dict(oi='oi_conc', # these are the column names in the saved pre
                      myi='MYI_conc',
                      fyi='FYI_conc')
 # read the header to get the column names
-orig_feats = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
+orig_feats = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
 orig_feats = [orig_feats[i] for i in list(range(18))] + [data_lab_name[l] for l in label]
 dtype = dict({c: 'float64' for c in orig_feats if c not in list(data_lab_name.values())+['date']}, **{c: 'float32' for c in orig_feats if c in data_lab_name.values()})
 # # read values
-data = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv', usecols=orig_feats,dtype=dtype,parse_dates=['date'],low_memory=True)
+data = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv', usecols=orig_feats,dtype=dtype,parse_dates=['date'],low_memory=True)
 data = data[orig_feats] # reorder columns
 # data = data.astype({orig_feats[-1]: 'float32'}) # we do not need greater than float32 precision for the label column
 data.dropna(inplace=True)
@@ -158,11 +156,11 @@ data_lab_name = dict(oi='oi_conc', # these are the column names in the saved pre
                      myi='MYI_conc',
                      fyi='FYI_conc')
 # read the header to get the column names
-orig_feats = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
+orig_feats = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
 orig_feats = [orig_feats[i] for i in list(range(18))]+[data_lab_name[l] for l in label]#[orig_feats.index(data_lab_name[label])]]
 dtype = dict({c: 'float64' for c in orig_feats if c not in list(data_lab_name.values())+['date']}, **{c: 'float32' for c in orig_feats if c in data_lab_name.values()})
 # # read values
-data = pd.read_csv('/volstore/spacebridge/gnssr_grzice/preprocessed_data/preprocessed_gnssr_update202330.csv', usecols=orig_feats,dtype=dtype,parse_dates=['date'],low_memory=True)
+data = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv', usecols=orig_feats,dtype=dtype,parse_dates=['date'],low_memory=True)
 data = data[orig_feats] # reorder columns
 data.dropna(inplace=True)
 # orig_feats = data.keys()[2:-1] # original features are the features used for training; so no labels or data/time
@@ -228,3 +226,5 @@ for si, s in enumerate(seas):
     if si==0:
       axs[si,li].set_title(label[li])
 plt.tight_layout()
+
+# %%
