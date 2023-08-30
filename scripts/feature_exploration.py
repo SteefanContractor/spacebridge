@@ -2,12 +2,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.express as px
 import seaborn as sns
-from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 # %%
 # load preprocessed data
-data_path = 'data/'
+data_path = '../data/'
 label = ['yi','myi','fyi']
 data_lab_name = dict(oi='oi_conc', # these are the column names in the saved preprocessed csv
                      yi='YI_conc',
@@ -31,9 +31,6 @@ if len(labels)>1:
 data.reset_index(inplace= True, drop=True)
 data
 # %%
-# drop rows with excess_phase_noise2 < -5 (only 35 rows)
-data = data[data.excess_phase_noise2>-5.]
-# %%
 # log transform snr_reflected and power_reflected columns
 data['snr_reflected1'] = np.log10(data['snr_reflected1'])
 data['snr_reflected2'] = np.log10(data['snr_reflected2'])
@@ -43,6 +40,9 @@ data['reflectivity1'] = np.log10(data['reflectivity1'])
 data['reflectivity2'] = np.log10(data['reflectivity2'])
 # drop NaN values introduced from log (only 161 reflectivity1 and 32 reflectivity2 values are <= 0)
 data.dropna(inplace=True)
+# %%
+# drop rows with excess_phase_noise2 < -5 (only 35 rows)
+data = data[data.excess_phase_noise2>-5.]
 # %%
 # min-max scale original features
 from sklearn.preprocessing import MinMaxScaler
@@ -71,24 +71,53 @@ waterice = data[(data.tot_conc==0.) | (data.tot_conc>99.)]
 waterice['waterice_label'] = [0 if tc==0. else 1 for tc in waterice.tot_conc]
 waterice = waterice.groupby('waterice_label').sample(frac=0.2,random_state=42)
 # %%
-# project data rows onto 2D space using tsne
-# tsne features
-tsne_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
-tsne = TSNE(n_components=2, verbose=1, perplexity=20, n_iter=300)
-tsne_results = tsne.fit_transform(waterice[tsne_feats])
-# %%
-# plot tsne results
-plt.figure(figsize=(10,10))
-plt.scatter(tsne_results[:,0],tsne_results[:,1],c=waterice['waterice_label'])
-# %%
 # project data rows onto 2D space using PCA
 # PCA features
 pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
-pca = PCA(n_components=2)
+pca = PCA(n_components=3)
 pca_results = pca.fit_transform(waterice[pca_feats])
 print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
 # %%
-# plot PCA results
-plt.figure(figsize=(10,10))
-plt.scatter(pca_results[:,0],pca_results[:,1],c=waterice['waterice_label'])
+#Plot PCA results
+# create a DataFrame with the 10% of PCA results and ice type labels
+# randomly sample 10% of the indices of pca_results
+idx = np.random.choice(pca_results.shape[0], int(pca_results.shape[0]*0.1), replace=False)
+df = pd.DataFrame({'PC1': pca_results[idx,0], 'PC2': pca_results[idx,1], 'PC3': pca_results[idx,2], 'water_or_ice': waterice['waterice_label'].iloc[idx]})
+
+# create an interactive 3D scatter plot using plotly
+fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='water_or_ice')
+
+# Adjust the marker size properties
+fig.update_traces(marker=dict(size=2,  # Specify the desired point size
+                            #   opacity=0.7,  # Adjust point opacity
+                            #   line=dict(width=2, color='DarkSlateGrey')
+                              ))  # Customize marker line
+
+# show the plot
+fig.show()
+# %%
+distinct_ice_types = data[(data.YI_conc>90.) | (data.MYI_conc>99.) | (data.FYI_conc>99.9)]
+distinct_ice_types['ice_type'] = [0 if yi>90. else 1 if myi>99. else 2 for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
+# %%
+# project data rows onto 3D space using PCA
+# PCA features
+pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
+pca = PCA(n_components=3)
+pca_results = pca.fit_transform(distinct_ice_types[pca_feats])
+print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
+# %%
+# create a DataFrame with the PCA results and ice type labels
+df = pd.DataFrame({'PC1': pca_results[:,0], 'PC2': pca_results[:,1], 'PC3': pca_results[:,2], 'ice_type': distinct_ice_types['ice_type']})
+
+# create an interactive 3D scatter plot using plotly
+fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='ice_type')
+
+# Adjust the marker size properties
+fig.update_traces(marker=dict(size=1,  # Specify the desired point size
+                            #   opacity=0.7,  # Adjust point opacity
+                            #   line=dict(width=2, color='DarkSlateGrey')
+                              ))  # Customize marker line
+
+# show the plot
+fig.show()
 # %%
