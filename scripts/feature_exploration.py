@@ -97,7 +97,8 @@ fig.update_traces(marker=dict(size=2,  # Specify the desired point size
 fig.show()
 # %%
 distinct_ice_types = data[(data.YI_conc>90.) | (data.MYI_conc>99.) | (data.FYI_conc>99.9)]
-distinct_ice_types['ice_type'] = [0 if yi>90. else 1 if myi>99. else 2 for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
+distinct_ice_types['ice_type'] = ['YI' if yi>90. else 'MYI' if myi>99. else 'FYI' for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
+pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
 # %%
 # project data rows onto 3D space using PCA
 # PCA features
@@ -120,4 +121,72 @@ fig.update_traces(marker=dict(size=1,  # Specify the desired point size
 
 # show the plot
 fig.show()
+# %%
+# Check if there is more separation between ice types seasonally
+# create seasonal dataframe of distinct ice types
+# get seasonal indices by querying the date + time columns
+datentime = distinct_ice_types[['date','time']]#.drop(data.sample(frac=0.9,random_state=202206).index)
+winterdatetime = datentime.query('20200501 <= date <= 20200930')
+summerdatetime = datentime.query('date < 20200401 or date >= 20201101')
+AprOctdatetime = datentime.drop(pd.concat([winterdatetime, summerdatetime]).index)
+# use indices to filter data
+wintericetypes=distinct_ice_types.loc[winterdatetime.index]
+summericetypes=distinct_ice_types.loc[summerdatetime.index]
+shouldericetypes=distinct_ice_types.loc[AprOctdatetime.index]
+# assert that the length of the seasonal dataframes is equal to the length of distinct_ice_types
+assert len(wintericetypes)+len(summericetypes)+len(shouldericetypes)==len(distinct_ice_types)
+# %%
+def plot_pca(df, feats, n_components=3, label=None):
+    """
+    Plot PCA results in 2D or 3D space using plotly.
+    Parameters
+    ----------
+    df : pandas DataFrame
+        DataFrame containing PCA results and labels.
+    feats : list
+        List of feature names.
+    n_components : int, optional
+        Number of PCA components to plot (2 or 3). The default is 3.
+    label : str, optional
+        Name of label column. The default is None.
+    Returns
+    -------
+    df_pca : pandas DataFrame
+        DataFrame containing PCA results and labels.
+    """ 
+    assert n_components in [2,3], 'n_components must be 2 or 3'
+    # perform PCA on the DataFrame
+    pca = PCA(n_components=3)
+    pca_results = pca.fit_transform(df[feats])
+
+    print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
+
+    # create a DataFrame with the PCA results and color labels
+    columns = [f'PC{i+1}' for i in range(n_components)]
+    if label is not None:
+        df_pca = pd.DataFrame({col: pca_results[:,i] for i, col in enumerate(columns)})
+        df_pca['label'] = df[label].reset_index(drop=True)
+    else:
+        df_pca = pd.DataFrame({col: pca_results[:,i] for i, col in enumerate(columns)})
+
+    if n_components==2:
+      # create an interactive 2D scatter plot using plotly
+      fig = px.scatter(df_pca, x='PC1', y='PC2', color='label')
+    elif n_components==3:
+      # create an interactive 3D scatter plot using plotly
+      fig = px.scatter_3d(df_pca, x='PC1', y='PC2', z='PC3', color='label')
+      # Adjust the marker size properties
+      fig.update_traces(marker=dict(size=2,  # Specify the desired point size
+                                    ))  # Customize marker line
+    # show the plot
+    fig.show()
+
+    return df_pca
+# %%
+# summer PCA
+summer_pca = plot_pca(summericetypes, pca_feats, n_components=3, label='ice_type')
+# winter PCA
+winter_pca = plot_pca(wintericetypes, pca_feats, n_components=3, label='ice_type')
+# shoulder PCA
+shoulder_pca = plot_pca(shouldericetypes, pca_feats, n_components=3, label='ice_type')
 # %%
