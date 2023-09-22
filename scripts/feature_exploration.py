@@ -69,6 +69,8 @@ data[data.tot_conc>99.][orig_feats].hist(figsize=(20,20),bins=50)
 # subset data to only include water and ice with equal fractions of each
 waterice = data[(data.tot_conc==0.) | (data.tot_conc>99.)]
 waterice['waterice_label'] = [0 if tc==0. else 1 for tc in waterice.tot_conc]
+# save waterice dataframe to file
+waterice.to_csv(data_path+'waterice.csv',index=False)
 waterice = waterice.groupby('waterice_label').sample(frac=0.2,random_state=42)
 # %%
 # project data rows onto 2D space using PCA
@@ -98,6 +100,8 @@ fig.show()
 # %%
 distinct_ice_types = data[(data.YI_conc>90.) | (data.MYI_conc>99.) | (data.FYI_conc>99.9)]
 distinct_ice_types['ice_type'] = ['YI' if yi>90. else 'MYI' if myi>99. else 'FYI' for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
+# save distinct_ice_types dataframe to file
+distinct_ice_types.to_csv(data_path+'distinct_ice_types.csv',index=False)
 pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
 # %%
 # project data rows onto 3D space using PCA
