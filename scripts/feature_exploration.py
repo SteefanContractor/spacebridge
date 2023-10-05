@@ -66,6 +66,18 @@ data[data.tot_conc==0.][orig_feats].hist(figsize=(20,20),bins=50)
 # filter tot_conc > 99. indicating ice and plot histogram of original features
 data[data.tot_conc>99.][orig_feats].hist(figsize=(20,20),bins=50)
 # %%
+# investigate rows with total concentration above 99% and 99.9%
+def icetype_dist(df):
+    print(f'total number of rows: {len(df)}')
+    print(f'number of YI_conc rows: {len(df[df.YI_conc>0.])}')
+    print(f'number of MYI_conc rows: {len(df[df.MYI_conc>0.])}')
+    print(f'number of FYI_conc rows: {len(df[df.FYI_conc>0.])}')
+
+print('total concentration > 99%')
+icetype_dist(data[data.tot_conc > 99.])
+print('total concentration > 99.9%')
+icetype_dist(data[data.tot_conc > 99.9])          
+# %%
 # subset data to only include water and ice with equal fractions of each
 waterice = data[(data.tot_conc==0.) | (data.tot_conc>99.)]
 waterice['waterice_label'] = [0 if tc==0. else 1 for tc in waterice.tot_conc]
@@ -103,6 +115,18 @@ distinct_ice_types['ice_type'] = ['YI' if yi>90. else 'MYI' if myi>99. else 'FYI
 # save distinct_ice_types dataframe to file
 distinct_ice_types.to_csv(data_path+'distinct_ice_types.csv',index=False)
 pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
+# %%
+# investigate what percentiles YI>90., MYI>99., and FYI>99.9 refer to
+print('total number of rows in distinct_ice_types: ', len(distinct_ice_types))
+print(f'YI_conc > 90. results in {len(data[data.YI_conc>90.])} rows')
+print(f'which corresponds to top {len(data[data.YI_conc>90.])/len(distinct_ice_types)*100:.2f}% of YI_conc values in distinct_ice_types')
+print(f'MYI_conc > 99. results in {len(data[data.MYI_conc>99.])} rows')
+print(f'which corresponds to top {len(data[data.MYI_conc>99.])/len(distinct_ice_types)*100:.2f}% of MYI_conc values in distinct_ice_types')
+print(f'FYI_conc > 99.9 results in {len(data[data.FYI_conc>99.9])} rows')
+print(f'which corresponds to top {len(data[data.FYI_conc>99.9])/len(distinct_ice_types)*100:.2f}% of FYI_conc values in distinct_ice_types')
+print(f'FYI_conc > 99.9 results in {len(data[data.FYI_conc>99.99])} rows')
+print(f'which corresponds to top {len(data[data.FYI_conc>99.99])/len(distinct_ice_types)*100:.2f}% of FYI_conc values in distinct_ice_types')
+
 # %%
 # project data rows onto 3D space using PCA
 # PCA features
