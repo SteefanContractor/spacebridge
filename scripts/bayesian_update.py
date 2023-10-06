@@ -3,6 +3,8 @@ import pandas as pd
 import pickle
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
+from matplotlib_venn import venn2
 # %%
 # load preprocessed data
 data_path = '../data/'
@@ -55,18 +57,60 @@ with open('../products/models/train_gradboost/lgbm_clf_waterice_label_2023-09-27
     waterice_model = pickle.load(f)
 # %%
 # drop the first two columns and the last six columns except the very last column
-unsure_waterice.drop(data.columns[:2].tolist()+data.columns[-6:-1].tolist(), axis=1,inplace=True)
-sure_waterice.drop(data.columns[:2].tolist()+data.columns[-6:-1].tolist(), axis=1,inplace=True)
+unsure_waterice.drop(data.columns[:2].tolist()+data.columns[-6:-4].tolist(), axis=1,inplace=True)
+sure_waterice.drop(data.columns[:2].tolist()+data.columns[-6:-4].tolist(), axis=1,inplace=True)
 # %%
 # get model predictions on unsure waterice data
-unsure_waterice['waterice_pred'] = waterice_model.predict(unsure_waterice.drop('tot_conc', axis=1))
+data['waterice_pred'] = waterice_model.predict(data.drop(data.columns[:2].tolist()+data.columns[-6:].tolist(), axis=1))
 # %%
 # use the val prediction normalized confusion matrix to update the ice concentrations
 val_confusion_matrix = np.array([[0.97546399, 0.08976091],
                                  [0.02453601, 0.91023909]])
 # %%
-unsure_waterice['updated_conc'] = unsure_waterice.apply(lambda x: val_confusion_matrix[1,int(x['waterice_pred'])]*x['tot_conc']/
-                                                        (val_confusion_matrix[1,int(x['waterice_pred'])]*x['tot_conc']+
-                                                         val_confusion_matrix[0,int(x['waterice_pred'])]*(100. - x['tot_conc'])), axis=1)
-unsure_waterice['updated_conc'] = unsure_waterice['updated_conc']*100.
+# update the ice concentrations using the val_confusion_matrix
+data['updated_conc'] = 100.*val_confusion_matrix[1,data.waterice_pred]*data.tot_conc/(val_confusion_matrix[0,data.waterice_pred]*(100.-data.tot_conc)+val_confusion_matrix[1,data.waterice_pred]*data.tot_conc)
+# scale up the ice type concentrations
+data['updated_YI'] = data['YI_conc']/data['tot_conc']*data['updated_conc']
+data['updated_FYI'] = data['FYI_conc']/data['tot_conc']*data['updated_conc']
+data['updated_MYI'] = data['MYI_conc']/data['tot_conc']*data['updated_conc']
 # %%
+# histogram of updated concentrations
+label=['updated_conc','updated_YI','updated_MYI','updated_FYI']
+fig, axs = plt.subplots(4,1,figsize=(8,9),sharex=True)
+fig.suptitle('U. Brem. Multiage Sea Ice Concentration', verticalalignment='center')
+for ax, lab in zip(axs, label):
+  ax.hist(data.loc[data[lab]>0,lab], 
+          bins=40, density=True, histtype='bar',)
+  ax.set_xlabel('Non zero '+lab+' ice concentration (%)')
+plt.tight_layout
+# %%
+# create venn diagrams to visualize the updated ice concentrations
+# total concentration
+venn2(subsets=(sum((data.updated_conc>99.) & (data.tot_conc<=99.)), sum((data.updated_conc>99.) & (data.tot_conc>99.)), sum((data.updated_conc<=99.) & (data.tot_conc>99.))), set_labels=('updated_conc 99% threshold','tot_conc 99% threshold'))
+plt.show()
+# YI
+venn2(subsets=(sum((data.updated_YI>98.) & (data.YI_conc<=98.)), sum((data.updated_YI>98.) & (data.YI_conc>90.)), sum((data.updated_YI<=98.) & (data.YI_conc>90.))), set_labels=('updated_YI 98% threshold','YI_conc 90% threshold'))
+plt.show()
+# MYI 
+venn2(subsets=(sum((data.updated_MYI>99.) & (data.MYI_conc<=99.)), sum((data.updated_MYI>99.) & (data.MYI_conc>99.)), sum((data.updated_MYI<=99.) & (data.MYI_conc>99.))), set_labels=('updated_MYI 99% threshold','MYI_conc'))
+plt.show()
+# FYI
+venn2(subsets=(sum((data.updated_FYI>99.9) & (data.FYI_conc<=99.9)), sum((data.updated_FYI>99.9) & (data.FYI_conc>99.9)), sum((data.updated_FYI<=99.9) & (data.FYI_conc>99.9))), set_labels=('updated_FYI 99.9% threshold','FYI_conc 99.9% threshold'))
+plt.show()
+venn2(subsets=(sum((data.updated_FYI>99.99) & (data.FYI_conc<=99.9)), sum((data.updated_FYI>99.9) & (data.FYI_conc>99.9)), sum((data.updated_FYI<=99.99) & (data.FYI_conc>99.9))), set_labels=('updated_FYI 99.99% threshold','FYI_conc 99.9% threshold'))
+plt.show()
+# %%
+# investigate what percentiles YI>98., MYI>99., and FYI>99.9 refer to
+print(f'YI_conc > 98. results in {len(data[data.updated_YI>98.])} rows')
+print(f'which corresponds to top {len(data[data.updated_YI>98.])/sum(data.updated_YI>0.)*100:.2f}% of YI_conc values in distinct_ice_types')
+print(f'MYI_conc > 99. results in {len(data[data.updated_MYI>99.])} rows')
+print(f'which corresponds to top {len(data[data.updated_MYI>99.])/sum(data.updated_MYI>0.)*100:.2f}% of MYI_conc values in distinct_ice_types')
+print(f'FYI_conc > 99.9 results in {len(data[data.updated_FYI>99.9])} rows')
+print(f'which corresponds to top {len(data[data.updated_FYI>99.9])/sum(data.updated_FYI>0.)*100:.2f}% of FYI_conc values in distinct_ice_types')
+print(f'FYI_conc > 99.99 results in {len(data[data.updated_FYI>99.99])} rows')
+print(f'which corresponds to top {len(data[data.updated_FYI>99.99])/sum(data.updated_FYI>0.)*100:.2f}% of FYI_conc values in distinct_ice_types')
+# %%
+distinct_ice_types = data[(data.updated_YI>98.) | (data.updated_MYI>99.) | (data.updated_FYI>99.99)]
+distinct_ice_types['ice_type'] = ['YI' if yi>98. else 'MYI' if myi>99. else 'FYI' for yi,myi in zip(distinct_ice_types.updated_YI,distinct_ice_types.updated_MYI)]
+# save distinct_ice_types dataframe to file
+distinct_ice_types.to_csv('../data/updated_distinct_ice_types.csv',index=False)
