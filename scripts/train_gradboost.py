@@ -8,7 +8,7 @@ import pickle
 import datetime
 # %%
 # read in the data
-data = pd.read_csv('../data/distinct_ice_types.csv')
+data = pd.read_csv('../data/updated_distinct_ice_types.csv')
 # drop the first two columns and the last seven columns except the very last column
 data.drop(data.columns[:2].tolist()+data.columns[-7:-1].tolist(), axis=1, inplace=True)
 # convert label to integer
@@ -17,6 +17,8 @@ label_col = data[label]
 data[label] = data[label].astype('category').cat.codes
 # label dictionary
 label_dict = dict(enumerate(label_col.astype('category').cat.categories))
+# feature columns
+feat_cols = data.columns[:-6].tolist()
 # split into train/val at a random 85:15 ratio
 train = data.sample(frac=0.85,random_state=42)
 val = data.drop(train.index)
@@ -25,10 +27,10 @@ def build_clf(classifier, params):
     # use above as kwargs for lgbmclassifier
     clf = classifier(**params)
     # fit the model
-    clf.fit(train.drop(label, axis=1), train[label])
+    clf.fit(train[feat_cols], train[label])
     # train/val score
-    print(f'Train score: {clf.score(train.drop(label, axis=1), train[label])}')
-    print(f'Validation score: {clf.score(val.drop(label, axis=1), val[label])}')
+    print(f'Train score: {clf.score(train[feat_cols], train[label])}')
+    print(f'Validation score: {clf.score(val[feat_cols], val[label])}')
     return clf
 # %%
 # set lgbm parameters
@@ -88,19 +90,19 @@ xgb_clf = build_clf(XGBClassifier, params)
 print('Label dictionary')
 print(label_dict)
 print('LGBM confusion matrix')
-print(confusion_matrix(val[label], lgbm_clf.predict(val.drop(label, axis=1)), normalize='true'))
+print(confusion_matrix(val[label], lgbm_clf.predict(val[feat_cols]), normalize='true'))
 print('XGB confusion matrix')
-print(confusion_matrix(val[label], xgb_clf.predict(val.drop(label, axis=1)), normalize='true'))
-# %%
-# save the models
-pickle.dump(lgbm_clf, open(f'../products/models/train_gradboost/lgbm_clf_{datetime.date.today()}.pkl', 'wb'))
-pickle.dump(xgb_clf, open(f'../products/models/train_gradboost/xgb_clf_{datetime.date.today()}.pkl', 'wb'))
+print(confusion_matrix(val[label], xgb_clf.predict(val[feat_cols]), normalize='true'))
 # %%
 # confusion matrix normalized by predictions (columns)
 print('Label dictionary')
 print(label_dict)
 print('LGBM confusion matrix')
-print(confusion_matrix(val[label], lgbm_clf.predict(val.drop(label, axis=1)), normalize='pred'))
+print(confusion_matrix(val[label], lgbm_clf.predict(val[feat_cols]), normalize='pred'))
 print('XGB confusion matrix')
-print(confusion_matrix(val[label], xgb_clf.predict(val.drop(label, axis=1)), normalize='pred'))
+print(confusion_matrix(val[label], xgb_clf.predict(val[feat_cols]), normalize='pred'))
+# %%
+# save the models
+pickle.dump(lgbm_clf, open(f'../products/models/train_gradboost/lgbm_clf_updated_icetype_{datetime.date.today()}.pkl', 'wb'))
+pickle.dump(xgb_clf, open(f'../products/models/train_gradboost/xgb_clf_updated_icetype_{datetime.date.today()}.pkl', 'wb'))
 # %%
