@@ -76,12 +76,14 @@ data['updated_MYI'] = data['MYI_conc']/data['tot_conc']*data['updated_conc']
 # %%
 # histogram of updated concentrations
 label=['updated_conc','updated_YI','updated_MYI','updated_FYI']
+oldlabel=['tot_conc','YI_conc','MYI_conc','FYI_conc']
 fig, axs = plt.subplots(4,1,figsize=(8,9),sharex=True)
 fig.suptitle('U. Brem. Multiage Sea Ice Concentration', verticalalignment='center')
-for ax, lab in zip(axs, label):
-  ax.hist(data.loc[data[lab]>0,lab], 
-          bins=40, density=True, histtype='bar',)
-  ax.set_xlabel('Non zero '+lab+' ice concentration (%)')
+for ax, ilab in zip(axs, range(len(label))):
+  ax.hist([data.loc[data[label[ilab]]>0,label[ilab]],data.loc[data[oldlabel[ilab]]>0,oldlabel[ilab]]], 
+          bins=40, density=True, histtype='bar',label=['updated','original'],)
+  ax.set_xlabel('Non zero '+oldlabel[ilab]+' ice concentration (%)')
+  ax.legend() if ilab==0 else None
 plt.tight_layout
 # %%
 # create venn diagrams to visualize the updated ice concentrations
