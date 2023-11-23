@@ -48,6 +48,7 @@ data.drop(['date','time','latitude','longitude'], axis=1, inplace=True)
 # bic score
 def gmm_bic_score(estimator, X):
     return estimator.score(X) - 0.5 * estimator.n_components * np.log(X.shape[0])
+# %%
 # base model
 bgm = BayesianGaussianMixture(max_iter=200, random_state=42)
 # set up grid search parameters
@@ -63,3 +64,45 @@ print(f'Grid search took {end-start} seconds')
 # %%
 # save model
 pickle.dump(grid_search, open('../products/models/sk_bgmm/gridsearch_bgm.pkl', 'wb'))
+# %%
+# load model
+grid_search = pickle.load(open('../products/models/sk_bgmm/gridsearch_bgm.pkl', 'rb'))
+
+# %%
+# Print the best number of components
+print(grid_search.best_params_)
+# %%
+df = pd.DataFrame(grid_search.cv_results_)[
+    ["param_n_components", "mean_test_score"]
+]
+df["mean_test_score"] = -df["mean_test_score"]
+df = df.rename(
+    columns={
+        "param_n_components": "Number of components",
+        "param_covariance_type": "Type of covariance",
+        "mean_test_score": "BIC score",
+    }
+)
+df.sort_values(by="BIC score").head()
+# %%
+import seaborn as sns
+
+sns.catplot(
+    data=df,
+    kind="bar",
+    x="Number of components",
+    y="BIC score",
+)
+# %%
+# Fit bgm with two components
+bgm = BayesianGaussianMixture(n_components=4, max_iter=200, random_state=42)
+bgm.fit(data)
+# save model
+pickle.dump(bgm, open('../products/models/sk_bgmm/bgmm_4comp_200iter.pkl', 'wb'))
+# %%
+# calculate BIC score
+print(f'BIC score: {gmm_bic_score(bgm, data)}')
+# %%
+# load model
+bgm = pickle.load(open('../products/models/sk_bgmm/bgmm_4comp_200iter.pkl', 'rb'))
+# %%
