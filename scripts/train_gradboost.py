@@ -8,6 +8,9 @@ import pickle
 import datetime
 from skopt import BayesSearchCV
 from skopt.space import Categorical
+from imblearn.over_sampling import SMOTE, ADASYN
+from imblearn.under_sampling import RandomUnderSampler, EditedNearestNeighbours, TomekLinks, ClusterCentroids, RepeatedEditedNearestNeighbours, AllKNN
+from imblearn.combine import SMOTEENN, SMOTETomek
 # %%
 data_path = "../data/preprocessed_gnssr_update202330_clean/"
 lab_names = pd.read_csv(data_path + "labels.csv", nrows=1, index_col=0).columns.tolist()
@@ -29,8 +32,8 @@ display(test_label.value_counts())
 # assign the rest for training
 train_label = label_encoded.drop(test_label.index)
 # randomly sample 1% of water_conc to balance training set
-water_conc = train_label[train_label == 'water_conc'].sample(frac=0.01, random_state=42)
-train_label = train_label[train_label != 'water_conc'].append(water_conc)
+# water_conc = train_label[train_label == 'water_conc'].sample(frac=0.01, random_state=42)
+# train_label = train_label[train_label != 'water_conc'].append(water_conc)
 display(train_label.value_counts())
 # %%
 # load the features but read only the training and testing indices
@@ -39,6 +42,55 @@ dtype = {feat: 'float64' for feat in feat_names}
 features = pd.read_csv(data_path + "transformed_scaled_feats.csv", index_col=0, dtype=dtype)
 train_features = features.loc[train_label.index]
 test_features = features.loc[test_label.index]
+# %%
+nsamples = {lab: 100_000 for lab in lab_names[:-1]}
+start = datetime.datetime.now()
+smte = SMOTE(sampling_strategy='auto', random_state=42, n_jobs=8)
+XSMOTE, ySMOTE = smte.fit_resample(train_features, train_label)
+end = datetime.datetime.now()
+print(f'Elapsed time: {end-start}')
+display(ySMOTE.value_counts())
+# # save resampled data
+# XSMOTE.to_csv(data_path + "resampled/SMOTE_feats.csv")
+# ySMOTE.to_csv(data_path + "resampled/SMOTE_labels.csv")
+# %%
+nsamples = {lab: 100_000 for lab in lab_names}
+start = datetime.datetime.now()
+rus = RandomUnderSampler(sampling_strategy=nsamples, random_state=42)
+XSMOTERUS, ySMOTERUS = rus.fit_resample(XSMOTE, ySMOTE)
+end = datetime.datetime.now()
+print(f'Elapsed time: {end-start}')
+display(ySMOTERUS.value_counts())
+# %%
+# now undersample the majority class
+start = datetime.datetime.now()
+enn = RepeatedEditedNearestNeighbours(sampling_strategy='majority', max_iter=100, n_neighbors=3, n_jobs=10)
+XSMOTEENN, ySMOTEENN = enn.fit_resample(XSMOTE, ySMOTE)
+end = datetime.datetime.now()
+print(f'Elapsed time: {end-start}')
+display(ySMOTEENN.value_counts())
+# save resampled data
+XSMOTEENN.to_csv(data_path + "resampled/SMOTERENN_feats.csv")
+ySMOTEENN.to_csv(data_path + "resampled/SMOTERENN_labels.csv")
+# %%
+# now undersample the majority class
+start = datetime.datetime.now()
+aknn = AllKNN(sampling_strategy='majority', n_jobs=10)
+XSMOTEAKNN, ySMOTEAKNN = enn.fit_resample(XSMOTE, ySMOTE)
+end = datetime.datetime.now()
+print(f'Elapsed time: {end-start}')
+display(ySMOTEAKNN.value_counts())
+# save resampled data
+XSMOTEAKNN.to_csv(data_path + "resampled/SMOTEAKNN_feats.csv")
+ySMOTEAKNN.to_csv(data_path + "resampled/SMOTEAKNN_labels.csv")
+# %%
+# TomekLinks
+start = datetime.datetime.now()
+tl = TomekLinks(sampling_strategy='majority', n_jobs=10)
+XTomek, yTomek = tl.fit_resample(XSMOTE, ySMOTE)
+end = datetime.datetime.now()
+print(f'Elapsed time: {end-start}')
+display(yTomek.value_counts())
 # %%
 # bayesian optimization based hyperparameter tuning fails because of outdated packages (sklearn)
 # not necessary anyway as gridsearch is fast enough
@@ -71,6 +123,8 @@ test_features = features.loc[test_label.index]
 # save optimizer
 # pickle.dump(opt, open(f'../products/models/train_gradboost/lgbm_bayesoptcv_{datetime.date.today()}.pkl', 'wb'))
 # %%
+train_features = XSMOTERUS
+train_label = ySMOTERUS
 val_feats = train_features.sample(frac=0.1, random_state=42)
 val_label = train_label.loc[val_feats.index]
 val_label_int = val_label.astype('category').cat.codes
@@ -129,9 +183,32 @@ params = {
     'verbose': -1,
 }
 
-for ne in [500, 600, 700]:
+for ne in [600, 700, 800, 900, 1000]:
     params['n_estimators'] = ne
     print(f'n_estimators: {ne}')
+    build_clf(LGBMClassifier, params)
+
+# %%
+# set lgbm parameters
+params = {
+    'objective': 'multiclass',
+    'metric': 'multi_logloss',
+    'num_class': 4,
+    'boosting': 'dart',
+    'learning_rate': 0.05,
+    'num_leaves': 31,
+    'max_depth': 7,
+    'bagging_fraction': 0.5,
+    'bagging_freq': 1,
+    'reg_alpha': 0.2,
+    'reg_lambda': 0.2,
+    'n_estimators': 500,
+    'verbose': -1,
+}
+
+for nl in [31, 41, 51, 61, 71]:
+    params['num_leaves'] = nl
+    print(f'num_leaves: {nl}')
     build_clf(LGBMClassifier, params)
 # %%
 # xgboost overfitts even more while being slower
@@ -159,13 +236,13 @@ params = {
     'num_class': 4,
     'boosting': 'dart',
     'learning_rate': 0.05,
-    'num_leaves': 31,
+    'num_leaves': 51,
     'max_depth': 7,
     'bagging_fraction': 0.5,
     'bagging_freq': 1,
     'reg_alpha': 0.2,
     'reg_lambda': 0.2,
-    'n_estimators': 500,
+    'n_estimators': 1500,
     'verbose': -1,
 }
 lgbm_clf = build_clf(LGBMClassifier, params)
@@ -183,9 +260,75 @@ print(confusion_matrix(val_label, lgbm_clf.predict(val_feats), normalize='pred',
 print(lab_names[:3])
 print(confusion_matrix(val_label, lgbm_clf.predict(val_feats), normalize='pred', labels=['YI_conc', 'FYI_conc', 'MYI_conc']))
 # %%
-timestamp = datetime.datetime.now()   
+timestamp = datetime.datetime.now()
+print(f'Saving lgbm_clf_4class_cleanSMOTEdata_{timestamp}.pkl')   
 # save the models
-pickle.dump(lgbm_clf, open(f'../products/models/train_gradboost/lgbm_clf_4class_cleandata_{timestamp}.pkl', 'wb'))
+pickle.dump(lgbm_clf, open(f'../products/models/train_gradboost/lgbm_clf_4class_cleanSMOTEdata_{timestamp}.pkl', 'wb'))
 # save params
-pickle.dump(params, open(f'../products/models/train_gradboost/lgbm_clf_4class_cleandata_params_{timestamp}.pkl', 'wb'))
+pickle.dump(params, open(f'../products/models/train_gradboost/lgbm_clf_4class_cleanSMOTEdata_params_{timestamp}.pkl', 'wb'))
+# %%
+# Now the hyperparameter tuning is done, we can use the whole training set to train the model
+# assign the rest for training
+train_label = label_encoded.drop(test_label.index)
+# randomly sample 1% of water_conc to balance training set
+water_conc = train_label[train_label == 'water_conc'].sample(frac=0.01, random_state=42)
+train_label = train_label[train_label != 'water_conc'].append(water_conc)
+display(train_label.value_counts())
+# load the features but read only the training and testing indices
+feat_names = pd.read_csv(data_path + "transformed_scaled_feats.csv", index_col=0, nrows=1).columns.tolist()
+dtype = {feat: 'float64' for feat in feat_names}
+features = pd.read_csv(data_path + "transformed_scaled_feats.csv", index_col=0, dtype=dtype)
+train_features = features.loc[train_label.index]
+test_features = features.loc[test_label.index]
+# %%
+# pick max_depth=6 and num_leaves=31
+params = {
+    'objective': 'multiclass',
+    'metric': 'multi_logloss',
+    'num_class': 4,
+    'boosting': 'dart',
+    'learning_rate': 0.05,
+    'num_leaves': 31,
+    'max_depth': 7,
+    'bagging_fraction': 0.5,
+    'bagging_freq': 1,
+    'reg_alpha': 0.2,
+    'reg_lambda': 0.2,
+    'n_estimators': 500,
+    'verbose': -1,
+}
+lgbm_clf = LGBMClassifier(**params)
+lgbm_clf.fit(train_features, train_label)
+# %%
+train_score = lgbm_clf.score(train_features, train_label)
+print(f'Train score: {train_score}')
+# %%
+# test score
+print(f'Test score: {lgbm_clf.score(test_features, test_label)}')
+# %%
+# confusion matrix
+print('Label dictionary')
+# print(label_dict)
+print('LGBM confusion matrix')
+print('Normalised by true labels')
+print(lab_names)
+print(confusion_matrix(test_label, lgbm_clf.predict(test_features), normalize='true', labels=lab_names))
+# confusion matrix normalized by predictions (columns)
+print('Normalised by pred labels')
+print(lab_names[:3])
+print(confusion_matrix(test_label, lgbm_clf.predict(test_features), normalize='pred', labels=lab_names))
+# %%
+# confusion matrix normalised by only ice classes to compare with ice only model
+print('Normalised by true labels')
+print(lab_names[:3])
+print(confusion_matrix(test_label, lgbm_clf.predict(test_features), normalize='true', labels=['YI_conc', 'FYI_conc', 'MYI_conc']))
+print('Normalised by pred labels')
+print(lab_names[:3])
+print(confusion_matrix(test_label, lgbm_clf.predict(test_features), normalize='pred', labels=['YI_conc', 'FYI_conc', 'MYI_conc']))
+# %%
+# %%
+# unnormalized confusion matrix
+print('LGBM confusion matrix')
+print(lab_names)
+print(confusion_matrix(test_label, lgbm_clf.predict(test_features), labels=lab_names))
 # %%
