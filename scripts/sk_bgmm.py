@@ -7,87 +7,31 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.decomposition import PCA
 import pickle
 import time
+import datetime
+# %%
+data_path = "../data/preprocessed_gnssr_update202330_clean/"
+Xres = pd.read_csv(data_path + "resampled/SMOTEENN_feats.csv", index_col=0)
+yres = pd.read_csv(data_path + "resampled/SMOTEENN_labels.csv", index_col=0).iloc[:, 0]
+features = Xres.sample(frac=0.65, random_state=42)
+len(features)
 # %%
 # load preprocessed data
-data_path = '../data/'
-label = ['yi','myi','fyi']
-data_lab_name = dict(oi='oi_conc', # these are the column names in the saved preprocessed csv
-                     yi='YI_conc',
-                     myi='MYI_conc',
-                     fyi='FYI_conc')
-# read the header to get the column names
-col_names = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
-orig_feats = [col_names[i] for i in list(range(18))] 
-lab_names = [data_lab_name[l] for l in label]
-col_names = orig_feats + lab_names
-dtype = dict({c: 'float64' for c in col_names if c not in ['date']} , **{c: 'float32' for c in col_names if c in data_lab_name.values()})
-# # read values
-data = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv', usecols=col_names,dtype=dtype,parse_dates=['date'],low_memory=True)
-data = data[col_names] # reorder columns
-data[lab_names] = data[lab_names]/100.
-data['water_conc'] = 1. - data[lab_names].sum(axis=1)
-lab_names.append('water_conc')
-# drop -999.0 values from reflectivity1 and reflectivity2 columns
-data = data[data.reflectivity1!=-999.0]
-data = data[data.reflectivity2!=-999.0]
-data.dropna(inplace=True)
-orig_feats = orig_feats[2:-2] # original features are the features used for training; so no labels or data/time
-data.reset_index(inplace= True, drop=True)
-data
+data_path = "../data/preprocessed_gnssr_update202330_clean/"
+lab_names = pd.read_csv(data_path + "labels.csv", nrows=1, index_col=0).columns.tolist()
+dtype = {label: 'float32' for label in lab_names}
+labels = pd.read_csv(data_path + "labels.csv", index_col=0, dtype=dtype)
 # %%
-# log transform snr_reflected and power_reflected columns
-data['snr_reflected1'] = np.log10(data['snr_reflected1'])
-data['snr_reflected2'] = np.log10(data['snr_reflected2'])
-data['power_reflected1'] = np.log10(data['power_reflected1'])
-data['power_reflected2'] = np.log10(data['power_reflected2'])
-data['reflectivity1'] = np.log10(data['reflectivity1'])
-data['reflectivity2'] = np.log10(data['reflectivity2'])
-# drop NaN values introduced from log (only 161 reflectivity1 and 32 reflectivity2 values are <= 0)
-data.dropna(inplace=True)# %%
-# %%
-# drop rows with excess_phase_noise2 < -5 (only 35 rows)
-data = data[data.excess_phase_noise2>-5.]
-# %%
-# min-max scale original features
-scaler = MinMaxScaler()
-data[orig_feats] = scaler.fit_transform(data[orig_feats])
-# %%
-# orig_data = data.copy()
-label = data[lab_names]
-label = label.idxmax(axis=1)
-# drop date, time, lat, lon columns
-data.drop(['date','time','latitude','longitude']+lab_names, axis=1, inplace=True)
-# %%
-# fit PCA with 3 components to 20% of data to check the total variance explained
-for n_components in range(3,8):
-    pca = PCA(n_components=n_components)
-    pca.fit(data.sample(frac=0.2))
-    # calculate total variance explained
-    print(f'Total variance explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)}')
-# %%
-for n_components in range(8,10):
-    pca = PCA(n_components=n_components)
-    pca.fit(data.sample(frac=0.2))
-    # calculate total variance explained
-    print(f'Total variance explained by {n_components} components: {np.sum(pca.explained_variance_ratio_)}')
-# %%
-# fit PCA with 7 components (99.3% of variance explained) and transform data
-# time the PCA
-start = time.time()
-pca = PCA(n_components=7)
-pca.fit(data)
-data = pca.transform(data)
-end = time.time()   
-print(f'PCA took {end-start} seconds')
-data = pd.DataFrame(data)
-
+# load the features but read only the training and testing indices
+feat_names = pd.read_csv(data_path + "pca_feats.csv", index_col=0, nrows=1).columns.tolist()
+dtype = {feat: 'float64' for feat in feat_names}
+features = pd.read_csv(data_path + "pca_feats.csv", index_col=0, dtype=dtype)
 # %%
 # bic score
 def gmm_bic_score(estimator, X):
     return estimator.score(X) - 0.5 * estimator.n_components * np.log(X.shape[0])
 # %%
 # base model
-bgm = BayesianGaussianMixture(max_iter=200, random_state=42)
+bgm = BayesianGaussianMixture(max_iter=1000, random_state=42)
 # set up grid search parameters
 param_grid = {'n_components': range(1,7)}
 # grid search
@@ -95,15 +39,35 @@ grid_search = GridSearchCV(
     bgm, param_grid=param_grid, scoring=gmm_bic_score
 )
 start = time.time()
-grid_search.fit(data)
+grid_search.fit(features.to_numpy())
 end = time.time()
 print(f'Grid search took {end-start} seconds')
 # %%
+timestamp = datetime.datetime.now().strftime("%Y%m%d:%H%M%S")
+print(timestamp)
 # save model
-pickle.dump(grid_search, open('../products/models/sk_bgmm/gridsearch_bgm.pkl', 'wb'))
+pickle.dump(grid_search, open(f'../products/models/sk_bgmm/gridsearch_bgm_clean_alldata_{timestamp}.pkl', 'wb'))
+# %%
+# base model
+bgm = BayesianGaussianMixture(max_iter=500, random_state=42)
+# set up grid search parameters
+param_grid = {'n_components': range(1,7)}
+# grid search
+grid_search = GridSearchCV(
+    bgm, param_grid=param_grid, scoring=gmm_bic_score
+)
+start = time.time()
+grid_search.fit(features[labels.ice_conc > 0].to_numpy())
+end = time.time()
+print(f'Grid search took {end-start} seconds')
+# %%
+timestamp = datetime.datetime.now().strftime("%Y%m%d:%H%M%S")
+print(timestamp)
+# save model
+pickle.dump(grid_search, open(f'../products/models/sk_bgmm/gridsearch_bgm_clean_nonzeroice_{timestamp}.pkl', 'wb'))
 # %%
 # load model
-grid_search = pickle.load(open('../products/models/sk_bgmm/gridsearch_bgm.pkl', 'rb'))
+grid_search2 = pickle.load(open(f'../products/models/sk_bgmm/gridsearch_bgm_clean_alldata_{timestamp}.pkl', 'rb'))
 
 # %%
 # Print the best number of components
