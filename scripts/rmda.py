@@ -4,104 +4,67 @@ from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 # from sklearn.decomposition import PCA
 # from sklearn.mixture import BayesianGaussianMixture
-from scipy.optimize import minimize#, Bounds, LinearConstraint, NonlinearConstraint 
+from scipy.optimize import minimize, Bounds#, LinearConstraint, NonlinearConstraint 
 from bayes_opt import BayesianOptimization
 import time
 from datetime import datetime
 import pickle
+import matplotlib.pyplot as plt
+from jax import grad, jacobian, hessian
+import jax.numpy as jnp
 # %%
 # load preprocessed data
 data_path = "../data/preprocessed_gnssr_update202330_clean/"
 Xres = pd.read_csv(data_path + "resampled/SMOTEENN_feats.csv", index_col=0)
 yres = pd.read_csv(data_path + "resampled/SMOTEENN_labels.csv", index_col=0).iloc[:, 0]
-features = Xres.sample(frac=0.65, random_state=42)
+features = Xres.sample(frac=0.01, random_state=42)
 len(features)
 # %%
 label = yres[features.index]
 lab_names = pd.read_csv(data_path + "labels.csv", nrows=1, index_col=0).columns.tolist()
 lab_names = [lab for lab in lab_names if lab != 'ice_conc']
-len(yres)
+# lab_names = jnp.array(lab_names)
+len(label)
 # %%
-# # load preprocessed data
-# data_path = '../data/'
-# label = ['yi','fyi','myi']
-# data_lab_name = dict(oi='oi_conc', # these are the column names in the saved preprocessed csv
-#                      yi='YI_conc',
-#                      myi='MYI_conc',
-#                      fyi='FYI_conc')
-# # read the header to get the column names
-# col_names = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv',nrows=1).columns.tolist()
-# orig_feats = [col_names[i] for i in list(range(18))] 
-# lab_names = [data_lab_name[l] for l in label]
-# col_names = orig_feats + lab_names
-# dtype = dict({c: 'float64' for c in col_names if c not in ['date']} , **{c: 'float32' for c in col_names if c in data_lab_name.values()})
-# # # read values
-# data = pd.read_csv(data_path+'preprocessed_gnssr_update202330.csv', usecols=col_names,dtype=dtype,parse_dates=['date'],low_memory=True)
-# data = data[col_names] # reorder columns
-# data[lab_names] = data[lab_names]/100.
-# data['water_conc'] = 1. - data[lab_names].sum(axis=1)
-# lab_names.append('water_conc')
-# # drop -999.0 values from reflectivity1 and reflectivity2 columns
-# data = data[data.reflectivity1!=-999.0]
-# data = data[data.reflectivity2!=-999.0]
-# data.dropna(inplace=True)
-# orig_feats = orig_feats[2:-2] # original features are the features used for training; so no labels or data/time
-# data.reset_index(inplace= True, drop=True)
-# data
-# # %%
-# # log transform snr_reflected and power_reflected columns
-# data['snr_reflected1'] = np.log10(data['snr_reflected1'])
-# data['snr_reflected2'] = np.log10(data['snr_reflected2'])
-# data['power_reflected1'] = np.log10(data['power_reflected1'])
-# data['power_reflected2'] = np.log10(data['power_reflected2'])
-# data['reflectivity1'] = np.log10(data['reflectivity1'])
-# data['reflectivity2'] = np.log10(data['reflectivity2'])
-# # drop NaN values introduced from log (only 161 reflectivity1 and 32 reflectivity2 values are <= 0)
-# data.dropna(inplace=True)# %%
-# # %%
-# # drop rows with excess_phase_noise2 < -5 (only 35 rows)
-# data = data[data.excess_phase_noise2>-5.]
-# # %%
-# # min-max scale original features
-# scaler = MinMaxScaler()
-# data[orig_feats] = scaler.fit_transform(data[orig_feats])
-# # %%
-# # orig_data = data.copy()
-# label = data[lab_names]
-# label = label.idxmax(axis=1)
-# # drop date, time, lat, lon columns
-# data.drop(['date','time','latitude','longitude']+lab_names, axis=1, inplace=True)
-# # %%
-# # import PCA object
-# with open('../products/models/sk_bgmm/pca_7comp.pkl','rb') as f:
-#     pca = pickle.load(f)
-# # %%
-# # transform data
-# data = pca.transform(data)
+# transform with umap
+umap = pickle.load(open('../products/models/umap_transformation/umap_1200Kresampledfeats_mindist0.5_neighbors75_numcomp5_20240514:111207.pkl', "rb"))
+features = umap.transform(features)
+print(features[:5])
 # %%
 # import bgmm object
-with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_allfeats.pkl','rb') as f:
+with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_SMOTERUS12pc_umap.pkl','rb') as f:
     bgmm = pickle.load(f)
 # %%
 # predict probabilities
-P = bgmm.predict_proba(features)
+P = jnp.array(bgmm.predict_proba(features))
 K = P.shape[1]
 C = len(lab_names) # number of classes; yi, myi, fyi, water
 # %%
 # initial guess for scipy.optimize.minimize
-Ainit = np.array([np.sum(P[label==i], axis=0)/np.sum(label==i) for i in lab_names])
+Ainit_unbounded = jnp.log(jnp.array([jnp.sum(P[(label==i).to_numpy()], axis=0)/np.sum((label==i).to_numpy()) for i in lab_names]))
+Ainit_bounded = jnp.array([jnp.sum(P[(label==i).to_numpy()], axis=0)/jnp.sum((label==i).to_numpy()) for i in lab_names])
 # %%
 # define mle function for scipy.optimize.minimize
 tol = np.finfo(float).eps
-def mlefun(A,P,label,lab_names):
+def mlefun_unbounded(A,P,label,lab_names):
     K = P.shape[1]
     C = len(lab_names)
-    A = np.exp(A)
+    A = jnp.exp(A)
     A = A.reshape((C,K))
     R = A/A.sum(axis=0)
     f = 0   
     for l,i in zip(lab_names, range(C)):
-        f += np.sum(np.log( R[i] @ P[label==l].T )) 
+        f += jnp.sum(jnp.log( R[i] @ P[(label==l).to_numpy()].T ))
+    return -f
+
+def mlefun_bounded(A,P,label,lab_names):
+    K = P.shape[1]
+    C = len(lab_names)
+    A = A.reshape((C,K))
+    R = A/A.sum(axis=0)
+    f = 0   
+    for l,i in zip(lab_names, range(C)):
+        f += np.sum(np.log( R[i] @ P[label==l].T ))
     return -f
 
 # surrogate function for bayesian optimization
@@ -119,10 +82,10 @@ def mlefun_bayesian(**A):
     return f
     # return mlefun(R, *args)
 # %%
-# bounds = tuple((0.0+tol,1.0-tol) for i in range(C*K))
-# bounds = Bounds([0-tol]*C*K, [1.0+tol]*C*K, keep_feasible=True)
+bounds1 = tuple((0.0+tol,1.0-tol) for i in range(C*K))
+bounds2 = Bounds([0-tol]*C*K, [1.0+tol]*C*K, keep_feasible=True)
 # bounds for bayesian optimization
-bounds = {'x'+str(i): (0.0+np.finfo(float).eps, 10.) for i in range(C*K)}
+# bounds = {'x'+str(i): (0.0+np.finfo(float).eps, 10.) for i in range(C*K)}
 # %%
 # constraints no longer necessary as they are reparamaterized in the objective function
 # def A_linear_constraint(P, lab_names):
@@ -174,7 +137,7 @@ with open('../products/models/rmda/rmda_allfeats_K'+str(K)+'C'+str(C)+'_'+method
 # %%
 method = 'trust-constr'
 start = time.time()
-result = minimize(fun=mlefun, x0=Ainit.flatten(), args=args, method=method, tol=tol)
+result = minimize(fun=mlefun_bounded, x0=Ainit_bounded.flatten(), args=args, method=method, tol=tol, bounds=bounds1)
 end = time.time()
 print('time taken for '+method+' optimization:', (end-start)/60., 'minutes') #around 9 min
 # %%
@@ -188,7 +151,7 @@ with open('../products/models/rmda/rmda_allfeats_K'+str(K)+'C'+str(C)+'_'+method
 # %%
 method = 'COBYLA'
 start = time.time()
-result = minimize(fun=mlefun, x0=Ainit.flatten(), args=args, method=method, tol=tol)
+result = minimize(fun=mlefun_bounded, x0=Ainit_bounded.flatten(), args=args, method=method, tol=tol, bounds=bounds2)
 end = time.time()
 print('time taken for '+method+' optimization:', (end-start)/60., 'minutes') #around 9 min
 # %%
@@ -200,9 +163,9 @@ print(method+' result:', A_scipy/A_scipy.sum(axis=0))
 with open('../products/models/rmda/rmda_allfeats_K'+str(K)+'C'+str(C)+'_'+method+'_'+str(datetime.now()).replace(' ','_')+'.pkl','wb') as f:
     pickle.dump(result, f)
 # %%
-method = 'BFGS'
+method = 'trust-exact'
 start = time.time()
-result = minimize(fun=mlefun, x0=Ainit.flatten(), args=args, method=method, tol=tol)
+result = minimize(fun=mlefun_unbounded, x0=Ainit_unbounded.flatten(), args=args, method=method, tol=tol, jac=jacobian(mlefun_unbounded), hess=hessian(mlefun_unbounded))
 end = time.time()
 print('time taken for '+method+' optimization:', (end-start)/60., 'minutes') #around 9 min
 # %%

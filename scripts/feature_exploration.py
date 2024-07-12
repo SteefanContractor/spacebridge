@@ -109,6 +109,7 @@ fig.update_traces(marker=dict(size=2,  # Specify the desired point size
 
 # show the plot
 fig.show()
+fig.write_html("../products/notebooks/feature_exploration/First three principal components of features coloured by water-ice label.html")
 # %%
 distinct_ice_types = data[(data.YI_conc>90.) | (data.MYI_conc>99.) | (data.FYI_conc>99.9)]
 distinct_ice_types['ice_type'] = ['YI' if yi>90. else 'MYI' if myi>99. else 'FYI' for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
@@ -146,9 +147,10 @@ fig.update_traces(marker=dict(size=1,  # Specify the desired point size
                             #   opacity=0.7,  # Adjust point opacity
                             #   line=dict(width=2, color='DarkSlateGrey')
                               ))  # Customize marker line
-
+fig.update_layout(legend=dict(x=0.8))
 # show the plot
 fig.show()
+fig.write_html("../products/notebooks/feature_exploration/First three principal components of features coloured by ice type labels.html")
 # %%
 # Check if there is more separation between ice types seasonally
 # create seasonal dataframe of distinct ice types

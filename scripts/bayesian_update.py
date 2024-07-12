@@ -20,6 +20,9 @@ len(features), len(labels)
 # %%
 display(features.head())
 display(labels.head())
+# %% 
+with open('../products/models/rmda/rmda_umapfeats_K4C4_trust-constr_20240604:171926.pkl', 'rb') as f:
+  result = pickle.load(f)
 # %%
 # load lgbm model
 with open('../products/models/train_gradboost/lgbm_clf_4class_cleanSMOTEdata_20240508:082525.pkl', 'rb') as f:
@@ -62,9 +65,9 @@ bgmm_proba = pd.DataFrame(bgmm_proba, index=features.index, columns=lab_names)
 # rmda_post.to_csv(f'../products/results/rmda_posterior_proba_{timestamp}.csv')
 # %%
 # load posterior proba
-lgbm_post = pd.read_csv('../products/results/lgbm_posterior_proba_20240513:113448.csv', index_col=0)
+lgbm_post = pd.read_csv('../products/results/umap_lgbm_posterior_proba_20240607:090930.csv', index_col=0)
 lgbm_post = lgbm_post*100.
-rmda_post = pd.read_csv('../products/results/rmda_posterior_proba_20240513:113448.csv', index_col=0)
+rmda_post = pd.read_csv('../products/results/umap_rmda_posterior_proba_20240607:090930.csv', index_col=0)
 rmda_post = rmda_post*100.
 # %%
 labels['tot_ice_conc'] = labels.drop(columns=['water_conc']).sum(axis=1)

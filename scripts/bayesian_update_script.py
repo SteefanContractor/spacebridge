@@ -13,25 +13,37 @@ if __name__ == '__main__':
     features = pd.read_csv(data_path + "transformed_scaled_feats.csv", index_col=0, dtype='float64')
     features.index = features.index.astype('int64')
     features = features.loc[labels.index]
+    features_index = features.index
     print(len(features), len(labels))
     print(features.head())
     print(labels.head())
 
+    #umap transformation of features
+    start = datetime.now()
+    umap = pickle.load(open('../products/models/umap_transformation/umap_1200Kresampledfeats_mindist0.5_neighbors75_numcomp5_20240514:111207.pkl', "rb"))
+    features = umap.transform(features)
+    end = datetime.now()
+    print(f"UMAP transformation took {end-start} seconds")
+    print(f'Num umap features: {features.shape}')
+
     # load lgbm model
-    with open('../products/models/train_gradboost/lgbm_clf_4class_cleanSMOTEdata_20240508:082525.pkl', 'rb') as f:
+    with open('../products/models/train_gradboost/lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
         lgbm_model = pickle.load(f)
     # load sk_bgmm model of rmda model
-    with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_allfeats.pkl','rb') as f:
+    with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_SMOTERUS12pc_umap.pkl','rb') as f:
         bgmm_model = pickle.load(f)
 
-    lgbm_confusion_mat = np.array([[0.67241379, 0.15922921, 0.04158215, 0.12677485],
-                                [0.04790419, 0.84677703, 0.08559352, 0.01972526],
-                                [0.046875,   0.25878906, 0.64257812, 0.05175781],
-                                [0.01741254, 0.00994283, 0.00626461, 0.96638002]])
-    R = np.array([[0.30267574, 0.01846785, 0.32744918, 0.15491719],
-                [0.33155807, 0.00132933, 0.37493539, 0.0345478 ],
-                [0.35329142, 0.00568585, 0.28904677, 0.15025457],
-                [0.01247476, 0.97451697, 0.00856866, 0.66028044]])
+    with open('../products/models/train_gradboost/test_cm_true_lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
+        lgbm_confusion_mat = pickle.load(f)
+    print(lab_names)
+    print(lgbm_confusion_mat)
+    with open('../products/models/rmda/rmda_umapfeats_K4C4_trust-constr_20240604:171926.pkl', 'rb') as f:
+        result = pickle.load(f)
+    R = result.x
+    R = np.exp(R)
+    R = R.reshape((4,4))
+    R = R/R.sum(axis=0)
+    print(R)
     
     # predict proba lgbm
     # permutation according to lgbm_model.classes_ because labels are in the wrong order
@@ -58,9 +70,9 @@ if __name__ == '__main__':
     # save results
     timestamp = datetime.now().strftime("%Y%m%d:%H%M%S")
     print(f'Saving with timestamp: {timestamp}')
-    lgbm_proba = pd.DataFrame(lgbm_proba, index=features.index, columns=lab_names)
-    bgmm_proba = pd.DataFrame(bgmm_proba, index=features.index, columns=lab_names)
-    lgbm_proba.to_csv(f'../products/results/lgbm_predict_proba_{timestamp}.csv')
-    bgmm_proba.to_csv(f'../products/results/bgmm_predict_proba_{timestamp}.csv')
-    lgbm_post.to_csv(f'../products/results/lgbm_posterior_proba_{timestamp}.csv')
-    rmda_post.to_csv(f'../products/results/rmda_posterior_proba_{timestamp}.csv')
+    lgbm_proba = pd.DataFrame(lgbm_proba, index=features_index, columns=lab_names)
+    bgmm_proba = pd.DataFrame(bgmm_proba, index=features_index, columns=lab_names)
+    lgbm_proba.to_csv(f'../products/results/umap_lgbm_predict_proba_{timestamp}.csv')
+    bgmm_proba.to_csv(f'../products/results/umap_bgmm_predict_proba_{timestamp}.csv')
+    lgbm_post.to_csv(f'../products/results/umap_lgbm_posterior_proba_{timestamp}.csv')
+    rmda_post.to_csv(f'../products/results/umap_rmda_posterior_proba_{timestamp}.csv')
