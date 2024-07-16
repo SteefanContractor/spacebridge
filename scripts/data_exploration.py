@@ -40,11 +40,11 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 # %%
-import sys
-import gc
-import logging
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logger = logging.getLogger(__name__)
+# import sys
+# import gc
+# import logging
+# logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+# logger = logging.getLogger(__name__)
 
 # %% [markdown]
 # # Labels exploration
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 # ## OISSAF ice concentration labels
 
 # %%
-logger.info('Loading OSISAF data: ' + data_path+'preprocessed_gnssr_update202330.csv')
+# logger.info('Loading OSISAF data: ' + data_path+'preprocessed_gnssr_update202330.csv')
 
 # %%
 # load preprocessed data
@@ -226,5 +226,56 @@ for si, s in enumerate(seas):
     if si==0:
       axs[si,li].set_title(label[li])
 plt.tight_layout()
-
+# %% [markdown]
+# # Update: Jul 2024
+# ## Use updated data
+# ## Updated season definitions
+# %%
+import pandas as pd
+import pickle
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+from datetime import datetime
+# %%
+data_path = "../data/preprocessed_gnssr_update202330_clean/"
+lab_names =  ['ice_conc','water_conc']
+labels = pd.read_csv(data_path + "labels.csv", index_col=0, dtype='float32', usecols=['index']+lab_names)
+labels.index = labels.index.astype('int64')
+# subset to labels with ice conc >= 80% equivalent to the definition of pack ice
+labels = labels[labels.water_conc < 20.]
+# %%
+labels
+# %%
+# load metadata
+metadata = pd.read_csv(data_path + "metadata.csv", index_col=0, parse_dates=['date'])
+metadata
+# %%
+winter = metadata.query('20200801 <= date <= 20201031')
+summer = metadata.query('20200101 <= date <= 20200331')
+# %%
+fig, axs = plt.subplots(1,2,subplot_kw=dict(projection=ccrs.Orthographic(0,-90)), figsize=(15,18))
+# fig.suptitle('U. Brem. Multiage Sea Ice Concentration', verticalalignment='center')
+for i, seas in enumerate(['winter', 'summer']):
+  data = eval(seas)
+  axs[i].scatter(data['longitude'], data['latitude'], transform=ccrs.PlateCarree(), c='k', alpha=0.01, s=1)
+  axs[i].set_title(seas)
+  axs[i].coastlines()
+  axs[i].set_extent([-180, 180, -90, -50], ccrs.PlateCarree())
+# %%
+metadata = metadata.loc[labels.index]
+winter = metadata.query('20200801 <= date <= 20201031')
+summer = metadata.query('20200101 <= date <= 20200331') #date < 20200801 or date >= 20201101
+shoulder = metadata.drop(pd.concat([winter, summer]).index)
+assert len(winter)+len(summer)+len(shoulder) == len(metadata)
+# %%
+fig, axs = plt.subplots(1,2,subplot_kw=dict(projection=ccrs.Orthographic(0,-90)), figsize=(15,7))
+for i, seas in enumerate(['winter', 'summer']):
+  data = eval(seas)
+  axs[i].scatter(data['longitude'], data['latitude'], transform=ccrs.PlateCarree(), c='k', alpha=0.01, s=1)
+  axs[i].set_title(seas + ' (ASO)' if seas == 'winter' else seas + ' (JFM)')
+  axs[i].coastlines()
+  axs[i].set_extent([-180, 180, -90, -50], ccrs.PlateCarree())
+fig.suptitle('Only locations with IUP ice conc >= 80%', fontsize=20)
 # %%

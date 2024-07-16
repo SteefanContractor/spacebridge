@@ -15,7 +15,9 @@ conda env create -f environment.pycaret.yml -p /path/to/envs/pycaret
 conda activate pycaret
 ```
 
+## UMAP
 
+use the spacebridge-tabnet environment for correct umap pickle loading
 
 ## Running the pipeline
 

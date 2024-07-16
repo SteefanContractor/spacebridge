@@ -82,7 +82,7 @@ for ax, lab in zip(axs, ice_lab_names):
   ax.hist([labels.loc[labels[lab]>0,lab],
            lgbm_post.loc[lgbm_post[lab]>0,lab],
            rmda_post.loc[rmda_post[lab]>0,lab]], 
-          bins=40, density=False, histtype='bar',label=['U.Brem original','LGBM updated','RMDA updated'],)
+          bins=40, density=True, histtype='bar',label=['U.Brem original','LGBM updated','RMDA updated'],)
   ax.set_xlabel('Non zero '+lab+' (%)')
   ax.legend() if lab=='tot_ice_conc' else None
 plt.tight_layout()
@@ -120,8 +120,8 @@ display(rmda_post.describe())
 # load metadata
 metadata = pd.read_csv(data_path + "metadata.csv", index_col=0, parse_dates=['date'])
 metadata = metadata.loc[labels.index]
-winter = metadata.query('20200501 <= date <= 20200930')
-summer = metadata.query('date < 20200401 or date >= 20201101')
+winter = metadata.query('20200801 <= date <= 20201031')
+summer = metadata.query('20200101 <= date <= 20200331') #date < 20200801 or date >= 20201101
 shoulder = metadata.drop(pd.concat([winter, summer]).index)
 assert len(winter)+len(summer)+len(shoulder) == len(metadata)
 # %%
@@ -134,8 +134,8 @@ for data, title in zip([labels, lgbm_post, rmda_post], ['U.Brem Original','LGBM 
   fig.suptitle(f'{title} Ice Concentration', verticalalignment='center')
   for ax, lab in zip(axs, label):
     ax.hist([data.loc[data[lab]>0,lab], winterdata.loc[winterdata[lab]>0,lab], summerdata.loc[summerdata[lab]>0,lab], shoulderdata.loc[shoulderdata[lab]>0,lab]], 
-            bins=40, density=False, histtype='bar',
-            label=[f'All 2020; N={len(data)}', f'Winter (MJJA); N={len(winterdata)}', f'Summer (JFM+ND); N={len(summerdata)}', f'Shoulder (A+SO); N={len(summerdata)}'])
+            bins=40, density=True, histtype='bar',
+            label=[f'All 2020; N={len(data)}', f'Winter (ASO); N={len(winterdata)}', f'Summer (JFM); N={len(summerdata)}', f'Shoulder (AMJJ+ND); N={len(shoulderdata)}'])
     ax.set_xlabel('Non zero '+lab+' ice concentration (%)')
     ax.legend() if lab in ['MYI_conc'] else None
   plt.tight_layout()
@@ -148,14 +148,14 @@ for d in ['orig', 'lgbm', 'rmda']:
   data = labels if d == 'orig' else lgbm_post if d == 'lgbm' else rmda_post
   hci_data[d]['all'] = data[(data.YI_conc > 90.) | (data.FYI_conc > 99.9) | (data.MYI_conc > 99.)][['YI_conc','FYI_conc','MYI_conc']].idxmax(axis=1).to_frame().rename(columns={0:'label'})
   hci_data[d]['all'][['date','longitude','latitude']] = metadata.loc[hci_data[d]['all'].index, ['date','longitude','latitude']]
-  hci_data[d]['winter'] = hci_data[d]['all'].query('20200501 <= date <= 20200930')
-  hci_data[d]['summer'] = hci_data[d]['all'].query('date < 20200401 or date >= 20201101')
+  hci_data[d]['winter'] = hci_data[d]['all'].query('20200801 <= date <= 20201031')
+  hci_data[d]['summer'] = hci_data[d]['all'].query('20200101 <= date <= 20200331')
   hci_data[d]['shoulder'] = hci_data[d]['all'].drop(pd.concat([hci_data[d]['winter'], hci_data[d]['summer']]).index)
 # %%
-seas_legend = ['All 2020', 'Winter (MJJA)', 'Summer (JFM+ND)', 'Shoulder (A+SO)']
+seas_legend = ['All 2020', 'Winter (ASO)', 'Summer (JFM)', 'Shoulder (AMJJ+ND)']
 seas = ['all', 'winter', 'summer', 'shoulder']
 for d in ['orig', 'lgbm', 'rmda']:
-  fig, axs = plt.subplots(4,3,subplot_kw=dict(projection=ccrs.Orthographic(0,-90)), figsize=(15,18))
+  fig, axs = plt.subplots(4,3,subplot_kw=dict(projection=ccrs.Orthographic(180,-90)), figsize=(15,18))
   fig.subplots_adjust(wspace=0, hspace=0.05)
   for si, s in enumerate(seas):
     for li, lab in enumerate(['YI_conc','FYI_conc','MYI_conc']):
@@ -165,7 +165,7 @@ for d in ['orig', 'lgbm', 'rmda']:
       axs[si,li].coastlines()
       if li==0:
         # axs[si,li].set_ylabel(seas_legend[si], size=100,)
-        plt.annotate(seas_legend[::-1][si], (0.075, si/4+0.07), xycoords='subfigure fraction', fontsize=12, rotation=90)
+        plt.annotate(seas_legend[::-1][si], (0.07, si/4+0.07), xycoords='subfigure fraction', fontsize=12, rotation=90)
         # axs[si,li].yaxis.set_label_coords(0.5,1.02)
       if si==0:
         axs[si,li].set_title(lab)
