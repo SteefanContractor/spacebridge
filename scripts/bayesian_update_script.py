@@ -2,8 +2,14 @@ import pandas as pd
 import pickle
 import numpy as np
 from datetime import datetime
+import argparse
 
 if __name__ == '__main__':
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Bayesian Update Script')
+    parser.add_argument('--umap', action='store_true', help='Flag to indicate whether to use UMAP transformation')
+    args = parser.parse_args()
+
     # load preprocessed data
     data_path = "../data/preprocessed_gnssr_update202330_clean/"
     lab_names =  ['YI_conc','FYI_conc','MYI_conc','water_conc']
@@ -18,27 +24,29 @@ if __name__ == '__main__':
     print(features.head())
     print(labels.head())
 
-    #umap transformation of features
-    start = datetime.now()
-    umap = pickle.load(open('../products/models/umap_transformation/umap_1200Kresampledfeats_mindist0.5_neighbors75_numcomp5_20240514:111207.pkl', "rb"))
-    features = umap.transform(features)
-    end = datetime.now()
-    print(f"UMAP transformation took {end-start} seconds")
-    print(f'Num umap features: {features.shape}')
+    # UMAP transformation of features
+    if args.umap:
+        start = datetime.now()
+        umap = pickle.load(open('../products/models/umap_transformation/umap_1200Kresampledfeats_mindist0.5_neighbors75_numcomp5_20240514:111207.pkl', "rb"))
+        features = umap.transform(features)
+        end = datetime.now()
+        print(f"UMAP transformation took {end-start} seconds")
+        print(f'Num umap features: {features.shape}')
 
-    # load lgbm model
-    with open('../products/models/train_gradboost/lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
-        lgbm_model = pickle.load(f)
-    # load sk_bgmm model of rmda model
-    with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_SMOTERUS12pc_umap.pkl','rb') as f:
-        bgmm_model = pickle.load(f)
-
-    with open('../products/models/train_gradboost/test_cm_true_lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
-        lgbm_confusion_mat = pickle.load(f)
-    print(lab_names)
-    print(lgbm_confusion_mat)
-    with open('../products/models/rmda/rmda_umapfeats_K4C4_trust-constr_20240604:171926.pkl', 'rb') as f:
-        result = pickle.load(f)
+        # load lgbm model
+        with open('../products/models/train_gradboost/lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
+            lgbm_model = pickle.load(f)
+        # load sk_bgmm model of rmda model
+        with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_SMOTERUS12pc_umap.pkl','rb') as f:
+            bgmm_model = pickle.load(f)
+    else:
+        # load lgbm model
+        with open('../products/models/train_gradboost/lgbm_clf_4class_cleanSMOTEdata_20240508:082525.pkl', 'rb') as f:
+            lgbm_model = pickle.load(f)
+        # load sk_bgmm model of rmda model
+        with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_allfeats.pkl','rb') as f:
+            bgmm_model = pickle.load(f)
+    
     R = result.x
     R = np.exp(R)
     R = R.reshape((4,4))
