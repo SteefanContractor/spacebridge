@@ -47,11 +47,18 @@ if __name__ == '__main__':
         with open('../products/models/sk_bgmm/bgmm_4comp_1000iter_allfeats.pkl','rb') as f:
             bgmm_model = pickle.load(f)
     
-    R = result.x
-    R = np.exp(R)
-    R = R.reshape((4,4))
-    R = R/R.sum(axis=0)
-    print(R)
+    # with open('../products/models/train_gradboost/test_cm_true_lgbm_clf_4class_SMOTERUS12pc_umap_20240514:202900.pkl', 'rb') as f:
+    #     lgbm_confusion_mat = pickle.load(f)
+    # print(lab_names)
+    # print(lgbm_confusion_mat)
+    # with open('../products/models/rmda/rmda_umapfeats_K4C4_trust-constr_20240604:171926.pkl', 'rb') as f:
+    #     result = pickle.load(f)
+
+    # R = result.x
+    # R = np.exp(R)
+    # R = R.reshape((4,4))
+    # R = R/R.sum(axis=0)
+    # print(R)
     
     # predict proba lgbm
     # permutation according to lgbm_model.classes_ because labels are in the wrong order
