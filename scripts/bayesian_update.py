@@ -65,6 +65,12 @@ bgmm_proba = pd.DataFrame(bgmm_proba, index=features.index, columns=lab_names)
 # rmda_post.to_csv(f'../products/results/rmda_posterior_proba_{timestamp}.csv')
 # %%
 # load posterior proba
+lgbm_post = pd.read_csv('../products/results/lgbm_posterior_proba_20240513:113448.csv', index_col=0)
+lgbm_post = lgbm_post*100.
+rmda_post = pd.read_csv('../products/results/withoutumap_rmda_posterior_proba_20240815:130426.csv', index_col=0)
+rmda_post = rmda_post*100.
+# %%
+# load posterior proba
 lgbm_post = pd.read_csv('../products/results/umap_lgbm_posterior_proba_20240607:090930.csv', index_col=0)
 lgbm_post = lgbm_post*100.
 rmda_post = pd.read_csv('../products/results/umap_rmda_posterior_proba_20240607:090930.csv', index_col=0)
@@ -77,12 +83,12 @@ rmda_post['tot_ice_conc'] = rmda_post.drop(columns=['water_conc']).sum(axis=1)
 # histogram of updated concentrations
 ice_lab_names = ['tot_ice_conc','YI_conc','FYI_conc','MYI_conc']
 fig, axs = plt.subplots(4,1,figsize=(8,9),sharex=True)
-fig.suptitle('U. Brem. Multiage Sea Ice Concentration', verticalalignment='center')
+fig.suptitle('IUP Multiage Sea Ice Concentration', verticalalignment='center')
 for ax, lab in zip(axs, ice_lab_names):
   ax.hist([labels.loc[labels[lab]>0,lab],
            lgbm_post.loc[lgbm_post[lab]>0,lab],
            rmda_post.loc[rmda_post[lab]>0,lab]], 
-          bins=40, density=True, histtype='bar',label=['U.Brem original','LGBM updated','RMDA updated'],)
+          bins=40, density=False, histtype='bar',label=['IUP original','LGBM updated','RMDA updated'],)
   ax.set_xlabel('Non zero '+lab+' (%)')
   ax.legend() if lab=='tot_ice_conc' else None
 plt.tight_layout()
@@ -173,6 +179,47 @@ for d in ['orig', 'lgbm', 'rmda']:
   title = 'Original U.Brem data' if d == 'orig' else 'LGBM updated data' if d == 'lgbm' else 'RMDA updated data'
   fig.suptitle(title, fontsize=24, y=0.92)
   plt.show()
+# %%
+# IUP total ice concentration > 80% colored by majority ice class for winter and summer
+labels = labels.loc[(labels.YI_conc > 80.) | (labels.FYI_conc > 80.) | (labels.MYI_conc > 80.)]
+lgbm_post = lgbm_post.loc[(lgbm_post.YI_conc > 80.) | (lgbm_post.FYI_conc > 80.) | (lgbm_post.MYI_conc > 80.)]
+rmda_post = rmda_post.loc[(rmda_post.YI_conc > 80.) | (rmda_post.FYI_conc > 80.) | (rmda_post.MYI_conc > 80.)]
+# join with metadata to get the lat/lon
+labels = labels.join(metadata[['longitude','latitude', 'date']])
+lgbm_post = lgbm_post.join(metadata[['longitude','latitude', 'date']])
+rmda_post = rmda_post.join(metadata[['longitude','latitude', 'date']])
+# create majority column
+labels['majority'] = labels[['YI_conc','FYI_conc','MYI_conc','water_conc']].idxmax(axis=1)
+lgbm_post['majority'] = lgbm_post[['YI_conc','FYI_conc','MYI_conc','water_conc']].idxmax(axis=1)
+rmda_post['majority'] = rmda_post[['YI_conc','FYI_conc','MYI_conc','water_conc']].idxmax(axis=1)
+# %%
+def plot_pack_ice(data, title):
+  fig, axs = plt.subplots(1,2,subplot_kw=dict(projection=ccrs.Orthographic(0,-90)), figsize=(15,7))
+  for i, seas in enumerate(['winter', 'summer']):
+    plot_data = data.query('20200801 <= date <= 20201031') if seas == 'winter' else data.query('20200101 <= date <= 20200331')
+    scatter = axs[i].scatter(x=plot_data['longitude'], y=plot_data['latitude'], 
+                   c=plot_data['majority'].astype('category').cat.codes,
+                   transform=ccrs.PlateCarree(), alpha=0.01, s=1)
+    handles, _ = scatter.legend_elements(prop="colors", alpha=1.0)
+    axs[i].set_title(seas + ' (ASO)' if seas == 'winter' else seas + ' (JFM)')
+    axs[i].coastlines()
+    axs[i].set_extent([-180, 180, -90, -50], ccrs.PlateCarree())
+    axs[i].legend(handles, plot_data['majority'].astype('category').cat.categories, loc='upper right') if seas=='summer' else None
+  fig.suptitle(f'Only locations with at least 80% of one type of {title} ice conc', fontsize=20)
+# %%
+plot_pack_ice(labels, 'IUP')
+# %%
+plot_pack_ice(lgbm_post, 'LGBM updated')
+# %%
+plot_pack_ice(rmda_post, 'RMDA updated')
+# %%
+labels.majority.value_counts()
+# %%
+lgbm_post.majority.value_counts()
+# %%
+rmda_post.majority.value_counts()
+# %%
+
 # %%
 # # load preprocessed data
 # data_path = '../data/'
