@@ -80,18 +80,33 @@ labels['tot_ice_conc'] = labels.drop(columns=['water_conc']).sum(axis=1)
 lgbm_post['tot_ice_conc'] = lgbm_post.drop(columns=['water_conc']).sum(axis=1)
 rmda_post['tot_ice_conc'] = rmda_post.drop(columns=['water_conc']).sum(axis=1)
 # %%
-# histogram of updated concentrations
-ice_lab_names = ['tot_ice_conc','YI_conc','FYI_conc','MYI_conc']
-fig, axs = plt.subplots(4,1,figsize=(8,9),sharex=True)
-fig.suptitle('IUP Multiage Sea Ice Concentration', verticalalignment='center')
-for ax, lab in zip(axs, ice_lab_names):
-  ax.hist([labels.loc[labels[lab]>0,lab],
-           lgbm_post.loc[lgbm_post[lab]>0,lab],
-           rmda_post.loc[rmda_post[lab]>0,lab]], 
-          bins=40, density=False, histtype='bar',label=['IUP original','LGBM updated','RMDA updated'],)
-  ax.set_xlabel('Non zero '+lab+' (%)')
-  ax.legend() if lab=='tot_ice_conc' else None
-plt.tight_layout()
+def plot_hist(labels, lgbm_post, rmda_post, season=None):
+  # histogram of updated concentrations
+  ice_lab_names = ['tot_ice_conc','YI_conc','FYI_conc','MYI_conc']
+  fig, axs = plt.subplots(4,1,figsize=(8,9),sharex=True)
+  if season is None:
+    fig.suptitle('IUP Multiage Sea Ice Concentration', verticalalignment='center')
+  else:
+    fig.suptitle(f'IUP Multiage Sea Ice Concentration ({season})', verticalalignment='center')
+  for ax, lab in zip(axs, ice_lab_names):
+    ax.hist([labels.loc[labels[lab]>0,lab],
+            lgbm_post.loc[lgbm_post[lab]>0,lab],
+            rmda_post.loc[rmda_post[lab]>0,lab]], 
+            bins=40, density=False, histtype='bar',label=['IUP original','LGBM updated','RMDA updated'],)
+    ax.set_xlabel('Non zero '+lab+' (%)')
+    ax.legend() if lab=='tot_ice_conc' else None
+  plt.tight_layout()
+# %%
+plot_hist(labels, lgbm_post, rmda_post)
+# %%
+# load metadata by running cell
+# winter histogram
+winter_idx = metadata.query('20200801 <= date <= 20201031').index
+plot_hist(labels.loc[winter_idx], lgbm_post.loc[winter_idx], rmda_post.loc[winter_idx], season='Winter') 
+# %%
+# summer histogram
+summer_idx = metadata.query('20200101 <= date <= 20200331').index
+plot_hist(labels.loc[summer_idx], lgbm_post.loc[summer_idx], rmda_post.loc[summer_idx], season='Summer')
 # %%
 print('Original U.Brem ice concentration')
 display(labels.idxmax(axis=1).value_counts())
