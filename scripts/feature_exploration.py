@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import seaborn as sns
 from sklearn.decomposition import PCA
+from datetime import datetime
 # %%
 # load preprocessed data
 data_path = '../data/'
@@ -76,18 +77,29 @@ def icetype_dist(df):
 print('total concentration > 99%')
 icetype_dist(data[data.tot_conc > 99.])
 print('total concentration > 99.9%')
-icetype_dist(data[data.tot_conc > 99.9])          
+icetype_dist(data[data.tot_conc > 99.9])       
+# %%
+# load preprocessed data
+data_path = "../data/preprocessed_gnssr_update202330_clean/"
+lab_names =  ['YI_conc','FYI_conc','MYI_conc','water_conc']
+labels = pd.read_csv(data_path + "labels.csv", index_col=0, dtype='float32', usecols=['index']+lab_names)
+labels.index = labels.index.astype('int64')
+# labels = labels[labels.water_conc < 100.]
+features = pd.read_csv(data_path + "transformed_scaled_feats.csv", index_col=0, dtype='float64')
+features.index = features.index.astype('int64')
+# features = features.loc[labels.index]
+len(features), len(labels)   
 # %%
 # subset data to only include water and ice with equal fractions of each
-waterice = data[(data.tot_conc==0.) | (data.tot_conc>99.)]
-waterice['waterice_label'] = [0 if tc==0. else 1 for tc in waterice.tot_conc]
+waterice = features[(labels.water_conc==100.) | (labels.water_conc<1.)]
+waterice['waterice_label'] = [0 if wc==100. else 1 for wc in labels.loc[(labels.water_conc==100.) | (labels.water_conc<1.), 'water_conc']]
 # save waterice dataframe to file
-waterice.to_csv(data_path+'waterice.csv',index=False)
+# waterice.to_csv(data_path+'waterice.csv',index=False)
 waterice = waterice.groupby('waterice_label').sample(frac=0.2,random_state=42)
 # %%
 # project data rows onto 2D space using PCA
 # PCA features
-pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
+pca_feats = ['log_snr_reflected1','snr_direct1','phase_noise2','excess_phase_noise2','power_direct1']
 pca = PCA(n_components=3)
 pca_results = pca.fit_transform(waterice[pca_feats])
 print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
@@ -95,27 +107,31 @@ print('Explained variation per principal component: {}'.format(pca.explained_var
 #Plot PCA results
 # create a DataFrame with the 10% of PCA results and ice type labels
 # randomly sample 10% of the indices of pca_results
+timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 idx = np.random.choice(pca_results.shape[0], int(pca_results.shape[0]*0.1), replace=False)
-df = pd.DataFrame({'PC1': pca_results[idx,0], 'PC2': pca_results[idx,1], 'PC3': pca_results[idx,2], 'water_or_ice': waterice['waterice_label'].iloc[idx]})
+df = pd.DataFrame({'PC1': pca_results[idx,0], 'PC2': pca_results[idx,1], 'PC3': pca_results[idx,2], 'water_or_ice': ['water' if wi else 'ice' for wi in waterice['waterice_label'].iloc[idx]]})
+# create a DataFrame with the PCA results and ice type labels
+# df = pd.DataFrame({'PC1': pca_results[:,0], 'PC2': pca_results[:,1], 'PC3': pca_results[:,2], 'water_or_ice': waterice['waterice_label']})
 
 # create an interactive 3D scatter plot using plotly
-fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='water_or_ice')
+fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='water_or_ice', labels={'water_or_ice':'Water or Ice'})
 
 # Adjust the marker size properties
 fig.update_traces(marker=dict(size=2,  # Specify the desired point size
                             #   opacity=0.7,  # Adjust point opacity
                             #   line=dict(width=2, color='DarkSlateGrey')
                               ))  # Customize marker line
-
+fig.update_layout(legend=dict(x=0.8))
 # show the plot
 fig.show()
-fig.write_html("../products/notebooks/feature_exploration/First three principal components of features coloured by water-ice label.html")
+fig.write_html(f"../products/notebooks/feature_exploration/First three principal components of features coloured by water-ice label {timestamp}.html")
 # %%
-distinct_ice_types = data[(data.YI_conc>90.) | (data.MYI_conc>99.) | (data.FYI_conc>99.9)]
+distinct_ice_types = labels[(labels.YI_conc>90.) | (labels.MYI_conc>99.) | (labels.FYI_conc>99.9)]
 distinct_ice_types['ice_type'] = ['YI' if yi>90. else 'MYI' if myi>99. else 'FYI' for yi,myi in zip(distinct_ice_types.YI_conc,distinct_ice_types.MYI_conc)]
+distinct_ice_types = distinct_ice_types.join(features, how="left")
 # save distinct_ice_types dataframe to file
-distinct_ice_types.to_csv(data_path+'distinct_ice_types.csv',index=False)
-pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
+# distinct_ice_types.to_csv(data_path+'distinct_ice_types.csv',index=False)
+# pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
 # %%
 # investigate what percentiles YI>90., MYI>99., and FYI>99.9 refer to
 print('total number of rows in distinct_ice_types: ', len(distinct_ice_types))
@@ -131,16 +147,17 @@ print(f'which corresponds to top {len(data[data.FYI_conc>99.99])/len(distinct_ic
 # %%
 # project data rows onto 3D space using PCA
 # PCA features
-pca_feats = ['reflectivity1','snr_reflected1','power_reflected1','phase_noise1','excess_phase_noise1',]
+pca_feats = ['log_snr_reflected1','snr_direct1','phase_noise2','excess_phase_noise2','power_direct1']
 pca = PCA(n_components=3)
 pca_results = pca.fit_transform(distinct_ice_types[pca_feats])
 print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
 # %%
+timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 # create a DataFrame with the PCA results and ice type labels
 df = pd.DataFrame({'PC1': pca_results[:,0], 'PC2': pca_results[:,1], 'PC3': pca_results[:,2], 'ice_type': distinct_ice_types['ice_type']})
 
 # create an interactive 3D scatter plot using plotly
-fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='ice_type')
+fig = px.scatter_3d(df, x='PC1', y='PC2', z='PC3', color='ice_type', labels={'ice_type':'Ice Type'})
 
 # Adjust the marker size properties
 fig.update_traces(marker=dict(size=1,  # Specify the desired point size
@@ -150,7 +167,7 @@ fig.update_traces(marker=dict(size=1,  # Specify the desired point size
 fig.update_layout(legend=dict(x=0.8))
 # show the plot
 fig.show()
-fig.write_html("../products/notebooks/feature_exploration/First three principal components of features coloured by ice type labels.html")
+fig.write_html(f"../products/notebooks/feature_exploration/First three principal components of features coloured by ice type labels {timestamp}.html")
 # %%
 # Check if there is more separation between ice types seasonally
 # create seasonal dataframe of distinct ice types
