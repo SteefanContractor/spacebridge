@@ -51,15 +51,31 @@ scaler = MinMaxScaler()
 data[orig_feats] = scaler.fit_transform(data[orig_feats])
 # %%
 # plot histograms of feature columns
-data[orig_feats].hist(figsize=(20,20),bins=50)
+sns.set(style='ticks')
+data[orig_feats].hist(figsize=(20,20), bins=50, edgecolor='grey', color='grey', grid=False)
+sns.despine()
+
+# Increase title and axis font sizes
+for ax in plt.gcf().axes:
+    ax.set_title(ax.get_title(), fontsize=20)
+    ax.set_xlabel(ax.get_xlabel(), fontsize=20)
+    ax.set_ylabel(ax.get_ylabel(), fontsize=20)
 # %%
 # plot heatmap of feature correlations
 plt.figure(figsize=(20,20))
-sns.heatmap(data[orig_feats].corr(), annot=True, fmt='.2f', cmap='coolwarm')
+heatmap = sns.heatmap(data[orig_feats].corr(), annot=True, fmt='.2f', cmap='coolwarm', cbar_kws={'ticks': np.arange(-1, 1.1, 0.2)})
+heatmap.set_xticklabels(heatmap.get_xticklabels(), fontsize=20)
+heatmap.set_yticklabels(heatmap.get_yticklabels(), fontsize=20)
+colorbar = heatmap.collections[0].colorbar
+colorbar.ax.tick_params(labelsize=20)
 # %%
 # heatmap of feature correlations with labels
-plt.figure(figsize=(20,20))
-sns.heatmap(data[list(orig_feats)+labels].corr(), annot=True, fmt='.2f', cmap='coolwarm')
+plt.figure(figsize=(15,15))
+sns.heatmap(data[list(orig_feats)+labels].corr(), annot=True, fmt='.2f', cmap='coolwarm', cbar_kws={'ticks': np.arange(-1, 1.1, 0.2)})
+heatmap.set_xticklabels(heatmap.get_xticklabels(), fontsize=400)
+heatmap.set_yticklabels(heatmap.get_yticklabels(), fontsize=400)
+colorbar = heatmap.collections[0].colorbar
+colorbar.ax.tick_params(labelsize=200)
 # %%
 # filter tot_conc == 0 indicating water and plot histogram of original features
 data[data.tot_conc==0.][orig_feats].hist(figsize=(20,20),bins=50)
